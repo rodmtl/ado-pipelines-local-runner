@@ -1,4 +1,5 @@
 # Azure DevOps YAML Pipeline Local Validator & Debugger
+
 ## Technical Architecture Plan
 
 ---
@@ -7,7 +8,7 @@
 
 ### 1.1 High-Level Architecture Diagram
 
-```
+```md
 ┌─────────────────────────────────────────────────────────────────┐
 │                     CLI Entry Point                             │
 │              (Command Parser & Orchestrator)                    │
@@ -73,6 +74,7 @@
 ### 2.1 Component Details and Responsibilities
 
 #### 2.1.1 CLI Entry Point & Orchestrator
+
 - **Purpose**: Main application entry point; orchestrates workflow
 - **Responsibilities**:
   - Parse command-line arguments
@@ -83,16 +85,18 @@
 - **Key Exports**: Main function, configuration parser
 
 #### 2.1.2 File Input Resolver
+
 - **Purpose**: Discover and load YAML pipeline files
 - **Responsibilities**:
   - Accept single file or directory path
-  - Auto-discover pipeline files (*.yml, *.yaml)
+  - Auto-discover pipeline files (*.yml,*.yaml)
   - Validate file accessibility
   - Load file content into memory
   - Build file dependency graph
 - **Key Outputs**: File collection, file metadata
 
 #### 2.1.3 YAML Validator (Syntax)
+
 - **Purpose**: Validate YAML syntax correctness
 - **Responsibilities**:
   - Parse YAML content
@@ -102,6 +106,7 @@
 - **Key Outputs**: Validation results, error details
 
 #### 2.1.4 Schema Manager
+
 - **Purpose**: Maintain and enforce Azure DevOps pipeline schema
 - **Responsibilities**:
   - Load/cache ADO YAML schema definition
@@ -111,6 +116,7 @@
 - **Key Outputs**: Schema validation results
 
 #### 2.1.5 Template Resolver
+
 - **Purpose**: Resolve and inline template references
 - **Responsibilities**:
   - Detect template references (`- template:`)
@@ -122,6 +128,7 @@
 - **Key Outputs**: Expanded pipeline with inlined templates
 
 #### 2.1.6 Variable Processor
+
 - **Purpose**: Process and manage variable substitution
 - **Responsibilities**:
   - Load variable files (JSON, YAML)
@@ -134,6 +141,7 @@
 - **Key Outputs**: Substituted pipeline, variable manifest
 
 #### 2.1.7 AST/IR Builder
+
 - **Purpose**: Construct normalized intermediate representation
 - **Responsibilities**:
   - Transform YAML into typed data structures
@@ -144,6 +152,7 @@
 - **Key Outputs**: Normalized pipeline IR/AST
 
 #### 2.1.8 Execution Engine
+
 - **Purpose**: Execute pipeline locally
 - **Responsibilities**:
   - Stage runner: execute stages sequentially/parallel
@@ -156,6 +165,7 @@
 - **Key Outputs**: Execution results, step outputs
 
 #### 2.1.9 Mock Services Layer
+
 - **Purpose**: Provide mock implementations of ADO services
 - **Responsibilities**:
   - Mock variable groups with predefined values
@@ -166,6 +176,7 @@
 - **Key Outputs**: Service configuration objects
 
 #### 2.1.10 Diagnostic Reporter
+
 - **Purpose**: Capture and report execution diagnostics
 - **Responsibilities**:
   - Collect timestamped log entries
@@ -176,6 +187,7 @@
 - **Key Outputs**: Diagnostic data structure
 
 #### 2.1.11 Output Formatter & Report Builder
+
 - **Purpose**: Format results for user consumption
 - **Responsibilities**:
   - Format output based on user preference (JSON, table, text)
@@ -191,7 +203,7 @@
 
 ### 3.1 Module Dependency Graph
 
-```
+```md
 ┌─────────────────────────────────────────────────────────────┐
 │                      Entry Point                            │
 └────────────┬────────────────────────────────────────────────┘
@@ -258,50 +270,62 @@
 ### 3.2 Core Modules Definition
 
 #### 3.2.1 Parser Module
+
 **Responsibilities**:
+
 - YAML parsing with error recovery
 - Schema validation
 - Error reporting with source mapping
 
 **Sub-modules**:
+
 - `YamlParser`: YAML → JSON AST
 - `SchemaValidator`: AST → Validation results
 - `ErrorReporter`: Error formatting
 
 #### 3.2.2 Template Module
+
 **Responsibilities**:
+
 - Template discovery and loading
 - Template parameter binding
 - Recursive resolution
 - Cache management
 
 **Sub-modules**:
+
 - `TemplateLoader`: File/URL loading
 - `TemplateResolver`: Reference resolution
 - `ParameterBinder`: Parameter application
 - `TemplateCache`: Caching layer
 
 #### 3.2.3 Variable Module
+
 **Responsibilities**:
+
 - Variable file loading
 - Variable scoping
 - Substitution engine
 - Mock variable groups
 
 **Sub-modules**:
+
 - `VariableFileLoader`: Load .json/.yml var files
 - `VariableSubstitutor`: $(var) → value replacement
 - `ScopeManager`: Handle variable scopes
 - `MockVariableGroups`: Mock group definitions
 
 #### 3.2.4 Execution Module
+
 **Responsibilities**:
+
 - Stage/Job/Step execution
 - Condition evaluation
 - Shell command execution
 - Output capture
 
 **Sub-modules**:
+
 - `StageExecutor`: Stage orchestration
 - `JobExecutor`: Job execution with dependencies
 - `StepExecutor`: Individual step execution
@@ -309,22 +333,28 @@
 - `ConditionEvaluator`: Condition logic
 
 #### 3.2.5 Diagnostics Module
+
 **Responsibilities**:
+
 - Logging
 - Metrics collection
 - Trace generation
 
 **Sub-modules**:
+
 - `Logger`: Structured logging
 - `MetricsCollector`: Performance metrics
 - `TraceBuilder`: Execution trace construction
 
 #### 3.2.6 Services Module
+
 **Responsibilities**:
+
 - Mock service implementations
 - Service configuration
 
 **Sub-modules**:
+
 - `MockVariableGroupService`: Variable groups
 - `MockServiceConnectionService`: Service connections
 - `MockAgentPoolService`: Agent pools
@@ -339,6 +369,7 @@
 #### Recommendation: **.NET 8 (C#)**
 
 **Rationale**:
+
 - Strong YAML parsing libraries (YamlDotNet)
 - Excellent XML/JSON schema validation
 - Cross-platform support (Windows, macOS, Linux)
@@ -349,6 +380,7 @@
 - Large enterprise community
 
 **Alternatives**:
+
 - **Node.js**: Good cross-platform support, excellent JSON handling, but weaker YAML ecosystem
 - **Python**: Rapid development, good YAML support (PyYAML), but deployment complexity for CLI
 
@@ -357,47 +389,56 @@
 ### 4.2 Core Dependencies
 
 #### YAML Processing
+
 - **YamlDotNet** (v14.x): YAML parsing and serialization
 - **Alternative**: NYaml (if needed for better performance)
 
 #### Schema Validation
+
 - **JsonSchema.Net** (v6.x): JSON Schema validation
 - **YamlSchema**: Custom schema wrapper
 
 #### CLI Framework
+
 - **System.CommandLine**: Modern CLI parsing (.NET 8 built-in approach)
 - **Alternative**: Spectre.Console (for rich console output)
 
 #### File System
+
 - **System.IO**: Built-in file operations
 - **Glob**: Wildcard file pattern matching
 
 #### Execution & Shell
+
 - **System.Diagnostics.Process**: Shell command execution
 - **Hosting Infrastructure** (if needed): For PowerShell execution
 
 #### Configuration
+
 - **Microsoft.Extensions.Configuration**: Configuration management
 - **Microsoft.Extensions.DependencyInjection**: Dependency injection
 
 #### Logging
+
 - **Serilog**: Structured logging
 - **Serilog.Sinks.Console**: Console output
 - **Serilog.Sinks.File**: File logging
 
 #### Testing
+
 - **xUnit**: Unit testing
 - **Moq**: Mocking framework
 - **FluentAssertions**: Assertion library
 
 #### Additional Libraries
+
 - **Spectre.Console**: Rich console formatting
 - **Newtonsoft.Json / System.Text.Json**: JSON handling
 - **Polly**: Resilience/retry policies (for remote template loading)
 
 ### 4.3 Project Structure (Solution Layout)
 
-```
+```md
 AzDevopsLocalRunner/
 ├── src/
 │   ├── AzDevopsLocalRunner.Core/
@@ -480,7 +521,7 @@ AzDevopsLocalRunner/
 
 ### 5.1 Validation Flow
 
-```
+```md
 Input YAML File(s)
         │
         v
@@ -509,11 +550,12 @@ ERROR       ┌────────────────┐
 ```
 
 **Data Items Flowing**:
+
 - File paths → File content → YAML tokens → AST nodes → Validation result
 
 ### 5.2 Template Resolution Flow
 
-```
+```md
 Parsed Pipeline AST
         │
         v
@@ -556,11 +598,12 @@ Parsed Pipeline AST
 ```
 
 **Data Items Flowing**:
+
 - Pipeline AST → Template references → File/URL paths → Template YAML → Bound parameters → Merged AST
 
 ### 5.3 Variable Processing Flow
 
-```
+```md
 Pipeline AST + Variable Inputs
         │
         v
@@ -602,11 +645,12 @@ Pipeline AST + Variable Inputs
 ```
 
 **Data Items Flowing**:
+
 - Sources (files, inline, groups) → Variable map (scoped) → References found → Substitutions made → Output AST
 
 ### 5.4 Execution Flow
 
-```
+```md
 Substituted Pipeline AST
         │
         v
@@ -702,11 +746,12 @@ Substituted Pipeline AST
 ```
 
 **Data Items Flowing**:
+
 - AST → Execution graph → Step executions → Results → Aggregated results → Final report
 
 ### 5.5 End-to-End Processing Pipeline
 
-```
+```md
 ┌─────────────────┐
 │  User Input     │ (CLI args)
 │  - File path    │
@@ -809,7 +854,8 @@ v                 v
 ### 6.2 Message/Contract Definitions
 
 #### 6.2.1 Between Parser and Schema Manager
-```
+
+```md
 ValidationRequest {
   astNode: AstNode,
   schemaVersion: string
@@ -823,7 +869,8 @@ ValidationResult {
 ```
 
 #### 6.2.2 Between Template Resolver and File Resolver
-```
+
+```md
 TemplateReference {
   path: string,
   isRemote: boolean,
@@ -838,7 +885,8 @@ ResolvedTemplate {
 ```
 
 #### 6.2.3 Between Variable Processor and Substitution Engine
-```
+
+```md
 SubstitutionRequest {
   text: string,
   variableMap: Dictionary<string, string>,
@@ -853,7 +901,8 @@ SubstitutionResult {
 ```
 
 #### 6.2.4 Between Execution Engine and Step Executor
-```
+
+```md
 StepExecutionContext {
   stepDefinition: Step,
   environmentVariables: Dictionary<string, string>,
@@ -876,7 +925,7 @@ StepExecutionResult {
 
 ### 7.1 Mock Service Layer Design
 
-```
+```md
 ┌──────────────────────────────────────┐
 │   Mock Service Configuration         │
 │   (config.yml / appsettings.json)    │
@@ -913,7 +962,8 @@ References Values
 ### 7.2 Mock Service Implementations
 
 #### 7.2.1 Mock Variable Groups Service
-```
+
+```yaml
 MockVariableGroupService:
   - Groups: List<VariableGroup>
     - GroupName: string
@@ -938,7 +988,8 @@ Example Config (YAML):
 ```
 
 #### 7.2.2 Mock Service Connection Service
-```
+
+```yaml
 MockServiceConnectionService:
   - Connections: List<ServiceConnection>
     - ConnectionName: string
@@ -965,7 +1016,8 @@ Example Config (YAML):
 ```
 
 #### 7.2.3 Mock Agent Pool Service
-```
+
+```yaml
 MockAgentPoolService:
   - Pools: List<AgentPool>
     - PoolName: string
@@ -990,7 +1042,8 @@ Example Config (YAML):
 ```
 
 #### 7.2.4 Mock Environment Service
-```
+
+```yaml
 MockEnvironmentService:
   - Environments: List<Environment>
     - EnvironmentName: string
@@ -1010,7 +1063,7 @@ Example Config (YAML):
 
 ### 7.3 Mock Service Registry Pattern
 
-```
+```md
 IServiceRegistry (Interface)
   ├── RegisterVariableGroupService(service)
   ├── RegisterServiceConnectionService(service)
@@ -1032,7 +1085,7 @@ MockServiceRegistry (Implementation)
 
 ### 8.1 Plugin/Task Extension Points
 
-```
+```md
 ┌─────────────────────────────────────┐
 │  Custom Task Plugin System          │
 └────────────┬────────────────────────┘
@@ -1135,7 +1188,7 @@ public class InputDefinition
 
 ### 8.3 Built-in Task Registry
 
-```
+```md
 TaskRegistry
 ├── PowerShellTask
 │   └── Executes PowerShell scripts (.ps1)
@@ -1240,7 +1293,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 8.5 Extension Loading Mechanism
 
-```
+```md
 ┌────────────────────────────────┐
 │ Extension Discovery            │
 │ (Scan plugins directory)       │
@@ -1275,7 +1328,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 9.1 Execution Isolation
 
-```
+```md
 ┌─────────────────────────────────┐
 │  Step Execution Context         │
 └────────────┬────────────────────┘
@@ -1307,7 +1360,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 10.1 Error Severity Levels
 
-```
+```md
 Critical: Pipeline cannot proceed
 ├── YAML syntax errors
 ├── Missing required files
@@ -1334,7 +1387,7 @@ Low: Diagnostic information
 
 ### 10.2 Error Reporting Format
 
-```
+```md
 [ERROR] {Component}: {ErrorCode}
         Location: {File}:{Line}:{Column}
         Message: {Clear description}
@@ -1372,30 +1425,35 @@ Example:
 ## 12. Implementation Roadmap
 
 ### Phase 1: Foundation (Sprint 1-2)
+
 - Core data models (Pipeline, Stage, Job, Step)
 - YAML parser and schema validator
 - Basic CLI entry point
 - File discovery and loading
 
 ### Phase 2: Template & Variables (Sprint 3-4)
+
 - Template resolver with recursion
 - Variable processor and substitution
 - Mock services setup
 - Semantic validation
 
 ### Phase 3: Execution (Sprint 5-6)
+
 - Execution engine (stages, jobs, steps)
 - Shell execution wrapper
 - Step-level condition evaluation
 - Output capture
 
 ### Phase 4: Diagnostics & Reporting (Sprint 7)
+
 - Logging infrastructure
 - Metrics collection
 - Report formatting
 - Trace generation
 
 ### Phase 5: Extension & Polish (Sprint 8)
+
 - Task plugin system
 - Custom task loading
 - Documentation

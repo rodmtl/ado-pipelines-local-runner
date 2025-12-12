@@ -10,7 +10,7 @@
 
 1. [Executive Summary](#executive-summary)
 2. [Technical Architecture](#technical-architecture)
-3. [CLI](#cli--api-design)
+3. [CLI design](#cli-design)
 4. [Risk Analysis & Mitigation](#risk-analysis--mitigation)
 5. [Implementation Roadmap](#implementation-roadmap)
 6. [Success Criteria](#success-criteria)
