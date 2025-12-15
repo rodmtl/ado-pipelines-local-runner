@@ -1,6 +1,8 @@
 using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using AdoPipelinesLocalRunner.Contracts;
+using AdoPipelinesLocalRunner.Core.Reporting;
 
 namespace AdoPipelinesLocalRunner;
 
@@ -42,6 +44,6 @@ class Program
         });
 
         // Register services
-        // TODO: Register all service implementations
+        services.AddSingleton<IErrorReporter, ErrorReporter>();
     }
 }
