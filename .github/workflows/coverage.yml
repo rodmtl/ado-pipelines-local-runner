@@ -54,7 +54,7 @@ jobs:
         echo "Looking for coverage files..."
         find . -name "*.opencover.xml" -type f 2>/dev/null | head -5
         echo ""
-        cat tests/TestResults/$(ls -t tests/TestResults | head -1)/*.opencover.xml || true
+        cat ./coverage/coverage.opencover.xml
 
     - name: Install ReportGenerator
       run: dotnet tool install -g dotnet-reportgenerator-globaltool
