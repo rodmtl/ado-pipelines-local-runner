@@ -1,5 +1,7 @@
 # Architecture & Design
 
+<!-- markdownlint-disable MD013 MD022 MD029 MD031 MD032 MD040 -->
+
 ## System Architecture
 
 ### High-Level Overview

@@ -1,6 +1,8 @@
 # Azure DevOps YAML Pipeline Local Validator & Debugger - Comprehensive Plan
 
-**Document Version:** 1.0  
+<!-- markdownlint-disable MD013 MD024 MD029 MD032 MD033 MD034 MD040 MD060 -->
+
+**Document Version:** 1.0
 **Created:** December 12, 2025  
 **Status:** Approved for Implementation  
 

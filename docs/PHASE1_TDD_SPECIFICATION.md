@@ -11,7 +11,7 @@
 
 ### 1.1 Testing Pyramid for MVP
 
-```
+```text
         ┌───────────────┐
         │  E2E Tests    │  ← 5% (CLI validation flow)
         │   (2-3)       │
@@ -27,25 +27,27 @@
 ### 1.2 Coverage Targets
 
 | Component           | Line Coverage | Branch Coverage | Priority |
-|---------------------|--------------|-----------------|----------|
-| YamlParser          | 85%          | 80%             | HIGH     |
-| SyntaxValidator     | 90%          | 85%             | CRITICAL |
-| SchemaManager       | 85%          | 80%             | HIGH     |
-| TemplateResolver    | 85%          | 80%             | HIGH     |
-| VariableProcessor   | 85%          | 80%             | HIGH     |
-| CLI Handler         | 70%          | 65%             | MEDIUM   |
-| **Overall MVP**     | **85%**      | **80%**         | -        |
+| ------------------- | ------------- | --------------- | -------- |
+| YamlParser          | 85%           | 80%             | HIGH     |
+| SyntaxValidator     | 90%           | 85%             | CRITICAL |
+| SchemaManager       | 85%           | 80%             | HIGH     |
+| TemplateResolver    | 85%           | 80%             | HIGH     |
+| VariableProcessor   | 85%           | 80%             | HIGH     |
+| CLI Handler         | 70%           | 65%             | MEDIUM   |
+| **Overall MVP**     | **85%**       | **80%**         | -        |
 
 ### 1.3 Mock Strategy
 
 **General Principles:**
+
 - Mock external dependencies (file system, network, time)
 - Use real implementations for value objects and DTOs
 - Mock at architectural boundaries (IYamlParser, ISchemaManager, etc.)
 - Prefer test doubles over mocking frameworks for simple scenarios
 
 **Mock Hierarchy:**
-```
+
+```text
 Real Objects:
   ├─ PipelineDocument
   ├─ ValidationError
@@ -90,11 +92,13 @@ Mocked Interfaces:
    - Multi-file source tracking (templates)
 
 **Test Categories:**
+
 - Happy path: 40%
 - Error scenarios: 40%
 - Edge cases: 20%
 
 **Dependencies to Mock:**
+
 - `IFileSystem` (file I/O)
 - `ILogger` (diagnostics)
 
@@ -124,11 +128,13 @@ Mocked Interfaces:
    - DependsOn references exist
 
 **Test Categories:**
+
 - Required fields: 30%
 - Structural rules: 40%
 - ADO conventions: 30%
 
 **Dependencies to Mock:**
+
 - `ILogger` (diagnostics)
 
 ---
@@ -157,11 +163,13 @@ Mocked Interfaces:
    - Suggested fixes when applicable
 
 **Test Categories:**
+
 - Schema operations: 20%
 - Validation logic: 60%
 - Error reporting: 20%
 
 **Dependencies to Mock:**
+
 - `IFileSystem` (schema file access)
 - `ILogger` (diagnostics)
 
@@ -192,11 +200,13 @@ Mocked Interfaces:
    - Type mismatch in parameters
 
 **Test Categories:**
+
 - Resolution logic: 40%
 - Parameter handling: 35%
 - Error scenarios: 25%
 
 **Dependencies to Mock:**
+
 - `IFileSystem` (template file access)
 - `IYamlParser` (parse templates)
 - `ILogger` (diagnostics)
@@ -228,11 +238,13 @@ Mocked Interfaces:
    - Variable group references
 
 **Test Categories:**
+
 - Variable expansion: 45%
 - Expression evaluation: 35%
 - Scope resolution: 20%
 
 **Dependencies to Mock:**
+
 - `ILogger` (diagnostics)
 
 ---
@@ -905,7 +917,9 @@ public class VariableProcessorTests
             {
                 new Dictionary<string, object>
                 {
-                    ["script"] = "echo Version: ${{ variables.majorVersion }}.${{ variables.minorVersion }}"
+                    ["script"] = "echo Version: " +
+                        "${{ variables.majorVersion }}." +
+                        "${{ variables.minorVersion }}"
                 }
             }
         };
@@ -1012,7 +1026,10 @@ public class VariableProcessorTests
                     ["stage"] = "Production",
                     ["variables"] = new List<object>
                     {
-                        new Dictionary<string, object> { ["environment"] = "prod" }
+                        new Dictionary<string, object>
+                        {
+                            ["environment"] = "prod"
+                        }
                     },
                     ["jobs"] = new List<object>
                     {
@@ -1060,26 +1077,32 @@ public class VariableProcessorTests
 **Key Scenarios:**
 
 1. **Parse → Validate Flow**
-   ```
+
+   ```text
    YamlParser → SyntaxValidator → SchemaManager
    ```
+
    - Parse valid pipeline → validate syntax → validate schema
    - Parse with errors → early exit with parse errors
    - Parse valid but invalid syntax → syntax errors
    - Valid syntax but invalid schema → schema errors
 
 2. **Template Resolution Flow**
-   ```
+
+   ```text
    YamlParser → TemplateResolver → YamlParser (recursive)
    ```
+
    - Parse main file → resolve template → parse template → merge
    - Nested template resolution (3 levels deep)
    - Template parameter validation
 
 3. **Variable Processing Flow**
-   ```
+
+   ```text
    VariableProcessor → entire document traversal
    ```
+
    - Process after template resolution
    - Respect scope hierarchy
    - Handle expressions in templates
@@ -1169,7 +1192,7 @@ stages:
 
 ### 5.1 Project Structure
 
-```
+```text
 AdoPipelinesLocalRunner.Tests/
 ├── Unit/
 │   ├── Core/
@@ -1201,6 +1224,7 @@ AdoPipelinesLocalRunner.Tests/
 **Pattern:** `MethodName_Scenario_ExpectedBehavior`
 
 **Examples:**
+
 - `Parse_ValidYaml_ReturnsParsedDocument`
 - `Validate_MissingRequiredField_ReturnsError`
 - `ResolveTemplates_CircularReference_ReturnsError`
@@ -1221,12 +1245,22 @@ public class PipelineDocumentBuilder
 
     public PipelineDocumentBuilder WithSteps(params object[] steps)
     {
-        return this with { _document = _document with { Steps = steps.ToList() } };
+        return this with
+        {
+            _document = _document with { Steps = steps.ToList() }
+        };
     }
 
-    public PipelineDocumentBuilder WithVariables(Dictionary<string, object> variables)
+    public PipelineDocumentBuilder WithVariables(
+        Dictionary<string, object> variables)
     {
-        return this with { _document = _document with { Variables = new List<object> { variables } } };
+        return this with
+        {
+            _document = _document with
+            {
+                Variables = new List<object> { variables }
+            }
+        };
     }
 
     public PipelineDocument Build() => _document;
@@ -1237,7 +1271,7 @@ public class PipelineDocumentBuilder
 
 Store common test YAML files in `TestData/` directory:
 
-```
+```text
 TestData/
 ├── Valid/
 │   ├── simple-pipeline.yml
@@ -1262,15 +1296,18 @@ TestData/
 ### 7.1 Test Execution Priorities
 
 **Priority 1 - Fast Feedback (< 5 seconds):**
+
 - Unit tests for all components
 - Run on every file save (watch mode)
 
 **Priority 2 - Pre-commit (< 30 seconds):**
+
 - All unit tests
 - Critical integration tests
 - Run before git commit
 
 **Priority 3 - CI Pipeline (< 2 minutes):**
+
 - All tests (unit + integration + E2E)
 - Code coverage analysis
 - Run on every push
@@ -1278,11 +1315,13 @@ TestData/
 ### 7.2 Code Coverage Reports
 
 **Tools:**
+
 - Coverlet for .NET code coverage
 - ReportGenerator for HTML reports
 - SonarQube for quality gates
 
 **Minimum Thresholds:**
+
 - Line coverage: 85%
 - Branch coverage: 80%
 - Fail build if below thresholds
@@ -1322,6 +1361,7 @@ public void TestName()
 ### 8.3 Common Pitfalls to Avoid
 
 ❌ **Don't:**
+
 - Test implementation details
 - Use magic numbers/strings without context
 - Create interdependent tests
@@ -1329,6 +1369,7 @@ public void TestName()
 - Write tests that require manual verification
 
 ✅ **Do:**
+
 - Test behavior and contracts
 - Use constants or builders for test data
 - Ensure tests can run in any order
@@ -1428,4 +1469,4 @@ public class TestLogger : ILogger
 
 ---
 
-**Document End**
+## Document End

@@ -321,3 +321,29 @@ public record OutputConfiguration
     /// </summary>
     public int MaxWidth { get; init; } = 120;
 }
+
+/// <summary>
+/// Output format options for validation results.
+/// </summary>
+public enum OutputFormat
+{
+    /// <summary>
+    /// Plain text output.
+    /// </summary>
+    Text = 0,
+
+    /// <summary>
+    /// JSON format output.
+    /// </summary>
+    Json = 1,
+
+    /// <summary>
+    /// SARIF (Static Analysis Results Interchange Format) output.
+    /// </summary>
+    Sarif = 2,
+
+    /// <summary>
+    /// Markdown format output.
+    /// </summary>
+    Markdown = 3
+}

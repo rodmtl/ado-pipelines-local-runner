@@ -1,5 +1,7 @@
 # Phase 1 MVP - Architectural Specification
 
+<!-- markdownlint-disable MD013 MD022 MD024 MD032 MD040 -->
+
 ## ADO Pipelines Local Runner
 
 **Version:** 1.0  

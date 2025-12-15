@@ -1,6 +1,8 @@
 # Phase 1 MVP - Sequence Diagrams
 
-**Version:** 1.0  
+<!-- markdownlint-disable MD013 -->
+
+**Version:** 1.0
 **Date:** December 12, 2025  
 **Format:** Text-based ASCII diagrams
 
@@ -8,8 +10,8 @@
 
 ## 1. Main Validation Flow
 
-```
-┌──────┐     ┌────────────┐     ┌─────────────┐     ┌──────────────┐     ┌─────────────────┐     ┌──────────────────┐     ┌────────┐
+```text
+┌──────┐     ┌────────────┐     ┌─────────────┐┌──────────────┐     ┌─────────────────┐     ┌──────────────────┐     ┌────────┐
 │ CLI  │     │ YamlParser │     │SyntaxValidator│    │SchemaManager │     │TemplateResolver │     │VariableProcessor │     │ Result │
 └──┬───┘     └─────┬──────┘     └──────┬──────┘     └──────┬───────┘     └────────┬────────┘     └────────┬─────────┘     └───┬────┘
    │                │                   │                   │                      │                       │                   │
@@ -75,8 +77,8 @@
 
 ## 2. Error Handling Flow
 
-```
-┌──────────┐     ┌───────────┐     ┌─────────────────┐     ┌─────────────┐     ┌────────┐
+```text
+┌──────────┐     ┌───────────┐     ┌─────────────────┐┌─────────────┐     ┌────────┐
 │Component │     │ErrorContext│    │ErrorAggregator  │     │ErrorHandler │     │ Output │
 └────┬─────┘     └─────┬─────┘     └────────┬────────┘     └──────┬──────┘     └───┬────┘
      │                 │                     │                     │                │
@@ -116,7 +118,7 @@
 
 **Error Types:**
 
-```
+```text
 ErrorType
 ├── ParseError              (YAML syntax errors)
 │   ├── MalformedYaml
@@ -161,8 +163,8 @@ ErrorType
 
 ## 3. Template Resolution Flow (Local Files)
 
-```
-┌────────────────┐     ┌──────────┐     ┌──────────────┐     ┌─────────────┐     ┌─────────────┐
+```text
+┌────────────────┐     ┌──────────┐     ┌──────────────┐┌─────────────┐     ┌─────────────┐
 │TemplateResolver│     │FileSystem│     │ YamlParser   │     │ Validator   │     │MergedPipeline│
 └───────┬────────┘     └─────┬────┘     └──────┬───────┘     └──────┬──────┘     └──────┬──────┘
         │                    │                  │                    │                   │
@@ -240,7 +242,7 @@ ErrorType
 
 **Circular Reference Detection:**
 
-```
+```text
 Resolution Stack:
 ├─ main.yml
 │  ├─ templates/build.yml

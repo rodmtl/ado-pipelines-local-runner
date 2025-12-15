@@ -1,6 +1,8 @@
 # Phase 1 MVP - QA Acceptance Criteria
 
-**Version:** 1.0  
+<!-- markdownlint-disable MD007 MD013 MD024 MD031 MD032 MD060 -->
+
+**Version:** 1.0
 **Date:** December 12, 2025  
 **Target Release:** Phase 1 MVP  
 **Framework:** .NET 8.0  
@@ -1107,31 +1109,31 @@ azp-local update
 ### 3.3 Integration Test Scenarios
 
 | Scenario ID | Description | Input | Expected Output | Priority |
-|-------------|-------------|-------|-----------------|----------|
-| TS-I-001 | End-to-end validation of simple pipeline | Valid simple pipeline YAML | Exit 0, success message | P0 |
-| TS-I-002 | End-to-end validation with templates | Main + 2 template files | Exit 0, all templates resolved | P0 |
-| TS-I-003 | End-to-end with multiple error types | Pipeline with syntax, schema, template errors | Exit 1, all errors reported | P0 |
-| TS-I-004 | Full pipeline expansion | Pipeline with templates + variables | Expanded YAML output | P1 |
-| TS-I-005 | CI/CD integration | Validation in automated pipeline | JUnit XML report generated | P1 |
-| TS-I-006 | Configuration file loading | .azp-local.yml + pipeline | Settings applied correctly | P1 |
-| TS-I-007 | Multi-file validation | Batch of 10 pipelines | All validated, summary report | P2 |
+| --- | --- | --- | --- | --- |
+| TS-I-001 | End-to-end simple | Simple YAML | Exit 0 | P0 |
+| TS-I-002 | With templates | Main + 2 templates | Exit 0 | P0 |
+| TS-I-003 | Multiple errors | Multiple issues | Exit 1 | P0 |
+| TS-I-004 | Full expansion | Templates + vars | Expanded | P1 |
+| TS-I-005 | CI/CD integration | Auto validation | JUnit XML | P1 |
+| TS-I-006 | Config file loading | With config | Applied | P1 |
+| TS-I-007 | Multi-file batch | 10 pipelines | Summary | P2 |
 
 ---
 
 ### 3.4 Edge Case and Stress Test Scenarios
 
-| Scenario ID | Description | Input | Expected Behavior | Priority |
-|-------------|-------------|-------|-------------------|----------|
-| TS-E-001 | Empty pipeline file | 0 bytes | Error: empty file | P0 |
-| TS-E-002 | Pipeline with only comments | YAML with comments only | Error: no pipeline definition | P1 |
-| TS-E-003 | Maximum nesting depth | Deeply nested template hierarchy (20 levels) | Validate or error if > limit | P2 |
-| TS-E-004 | Maximum file size | 5MB pipeline file | Error: file too large | P2 |
-| TS-E-005 | Many templates | Pipeline referencing 100 templates | Performance degradation acceptable | P2 |
-| TS-E-006 | Special characters in paths | Paths with spaces, Unicode, symbols | Correctly resolved | P1 |
-| TS-E-007 | Symlink handling | Template via symbolic link | Follow symlink correctly | P2 |
-| TS-E-008 | Read-only file system | Attempt validation without write access | Works (no temp files needed) | P1 |
-| TS-E-009 | Concurrent file access | Multiple processes validating same file | No corruption, all succeed | P2 |
-| TS-E-010 | Locale-specific formatting | Non-English error messages (if supported) | Correct locale-specific output | P2 |
+| Scenario ID | Description | Input | Behavior | Priority |
+| --- | --- | --- | --- | --- |
+| TS-E-001 | Empty file | 0 bytes | Error | P0 |
+| TS-E-002 | Only comments | Comments | Error | P1 |
+| TS-E-003 | Max nesting | 20 levels | Validate | P2 |
+| TS-E-004 | Max file size | 5MB file | Error | P2 |
+| TS-E-005 | Many templates | 100 templates | Acceptable | P2 |
+| TS-E-006 | Special chars | Unicode, spaces | Resolved | P1 |
+| TS-E-007 | Symlink | Via symlink | Follow | P2 |
+| TS-E-008 | Read-only FS | No write | Works | P1 |
+| TS-E-009 | Concurrent | Multiple procs | Succeeds | P2 |
+| TS-E-010 | Locale | Non-English | Correct | P2 |
 
 ---
 
@@ -1263,14 +1265,15 @@ azp-local update
 
 ### 4.7 Defect Thresholds
 
-| Severity | Open Bugs Allowed | Description |
-|----------|-------------------|-------------|
-| P0 - Critical | 0 | Crashes, data loss, security vulnerabilities, complete feature failure |
-| P1 - High | ≤ 3 | Major functionality impaired, no workaround available |
-| P2 - Medium | ≤ 10 | Functionality impaired, workaround available |
-| P3 - Low | Unlimited | Minor issues, cosmetic defects, nice-to-have improvements |
+| Severity | Open Bugs | Description |
+| --- | --- | --- |
+| P0 - Critical | 0 | Crashes, data loss, security |
+| P1 - High | ≤ 3 | Major impairment |
+| P2 - Medium | ≤ 10 | Functionality impaired |
+| P3 - Low | Unlimited | Minor issues |
 
 **Additional Requirements:**
+
 - No increase in P0/P1 bugs for 5 consecutive days before release
 - All P0 bugs must have root cause analysis documented
 - All P1 bugs must have workaround documented if not fixed
@@ -1302,46 +1305,46 @@ azp-local update
 ### 5.1 Test Execution Metrics
 
 | Metric | Target | Measurement Method |
-|--------|--------|-------------------|
-| Test Pass Rate | ≥ 98% | (Passed Tests / Total Tests) × 100 |
-| Test Execution Time | < 5 minutes | CI/CD pipeline duration |
-| Flaky Test Rate | < 2% | Tests that fail intermittently |
-| Code Coverage | ≥ 85% | Code coverage tools (Coverlet) |
-| Branch Coverage | ≥ 80% | Code coverage tools (Coverlet) |
+| --- | --- | --- |
+| Test Pass Rate | ≥ 98% | Passed / Total × 100 |
+| Test Execution Time | < 5 minutes | CI/CD duration |
+| Flaky Test Rate | < 2% | Intermittent fails |
+| Code Coverage | ≥ 85% | Coverlet |
+| Branch Coverage | ≥ 80% | Coverlet |
 
 ---
 
 ### 5.2 Quality Metrics
 
 | Metric | Target | Measurement Method |
-|--------|--------|-------------------|
-| Defect Density | < 2 per KLOC | Defects found / (Lines of Code / 1000) |
-| Defect Escape Rate | < 5% | Defects found in production / Total defects |
-| Mean Time to Resolution (MTTR) | < 2 days (P0/P1) | Average time to close high-priority bugs |
-| Technical Debt Ratio | < 5% | SonarQube technical debt assessment |
+| --- | --- | --- |
+| Defect Density | < 2 per KLOC | Defects / (LOC / 1000) |
+| Defect Escape Rate | < 5% | Defects in prod / Total |
+| MTTR | < 2 days (P0/P1) | Avg time to close P0/P1 |
+| Technical Debt Ratio | < 5% | SonarQube assessment |
 
 ---
 
 ### 5.3 Performance Metrics
 
 | Metric | Target | Measurement Method |
-|--------|--------|-------------------|
-| Validation Throughput | ≥ 100 files/min | Small pipelines validated per minute |
-| P95 Response Time | < 200ms (small) | 95th percentile of validation duration |
-| P99 Response Time | < 500ms (small) | 99th percentile of validation duration |
-| Memory Efficiency | < 150MB (medium) | Peak memory usage during validation |
-| CPU Utilization | < 80% (single core) | Average CPU usage during validation |
+| --- | --- | --- |
+| Validation Throughput | ≥ 100 files/min | Small pipelines/min |
+| P95 Response Time | < 200ms (small) | 95th percentile |
+| P99 Response Time | < 500ms (small) | 99th percentile |
+| Memory Efficiency | < 150MB (medium) | Peak memory usage |
+| CPU Utilization | < 80% (single core) | Avg CPU usage |
 
 ---
 
 ### 5.4 Usability Metrics
 
 | Metric | Target | Measurement Method |
-|--------|--------|-------------------|
-| Installation Success Rate | ≥ 95% | Successful installations / Total attempts |
-| First-Time Success Rate | ≥ 80% | Users who succeed on first try |
+| --- | --- | --- |
+| Installation Success Rate | ≥ 95% | Success / Total attempts |
+| First-Time Success Rate | ≥ 80% | First try success |
 | Error Message Clarity | ≥ 4.0/5.0 | User survey rating |
-| Documentation Completeness | ≥ 90% | Questions answered in docs / Total questions |
+| Documentation Complete | ≥ 90% | Answers / Questions |
 
 ---
 
@@ -1379,31 +1382,37 @@ azp-local update
 ## Appendix A: Test Execution Schedule
 
 ### Week 1-2: Unit Testing
+
 - Component-level tests (YamlParser, SyntaxValidator, etc.)
 - Mock-based testing
 - Coverage measurement
 
 ### Week 3: Integration Testing
+
 - Component interaction tests
 - End-to-end validation flows
 - Template resolution scenarios
 
 ### Week 4: Cross-Platform Testing
+
 - Windows validation (10, 11, Server)
 - macOS validation (Intel, Apple Silicon)
 - Linux validation (Ubuntu, Debian, Alpine)
 
 ### Week 5: Performance & Stress Testing
+
 - Performance benchmarks
 - Memory profiling
 - Stress tests (large files, many templates)
 
 ### Week 6: User Acceptance Testing
+
 - Beta testing with select users
 - Usability feedback
 - Documentation review
 
 ### Week 7: Regression & Hardening
+
 - Re-test all P0/P1 scenarios
 - Fix remaining defects
 - Final sign-off
@@ -1412,31 +1421,31 @@ azp-local update
 
 ## Appendix B: Traceability Matrix
 
-| Requirement ID | Acceptance Criteria | Test Scenario(s) | Verification Method |
-|----------------|---------------------|------------------|---------------------|
-| REQ-F-001 | AC-F1.1 - AC-F1.4 | TS-F-001 to TS-F-008 | Automated unit + integration tests |
-| REQ-F-002 | AC-F2.1 - AC-F2.4 | TS-F-009 to TS-F-013 | Automated unit + integration tests |
-| REQ-F-003 | AC-F3.1 - AC-F3.4 | TS-F-014 to TS-F-020 | Automated integration tests |
-| REQ-F-004 | AC-F4.1 - AC-F4.4 | TS-F-021 to TS-F-025 | Automated unit + integration tests |
-| REQ-F-005 | AC-F5.1 - AC-F5.4 | TS-F-026 to TS-F-031 | Automated + manual tests |
-| REQ-P-001 | AC-P1.1 - AC-P1.4 | TS-NF-001 to TS-NF-007 | Automated performance tests |
-| REQ-P-002 | AC-P2.1 - AC-P2.5 | TS-NF-008 to TS-NF-018 | Automated platform tests |
-| REQ-P-003 | AC-P3.1 - AC-P3.3 | TS-NF-019 to TS-NF-021 | Automated reliability tests |
-| REQ-P-004 | AC-P4.1 - AC-P4.3 | TS-NF-022 to TS-NF-024 | Manual usability tests |
-| REQ-P-005 | AC-P5.1 - AC-P5.2 | TS-NF-025 to TS-NF-027 | Manual installation tests |
+| Requirement ID | Criteria | Test Scenario(s) | Method |
+| --- | --- | --- | --- |
+| REQ-F-001 | AC-F1.1 - AC-F1.4 | TS-F-001 to TS-F-008 | Auto tests |
+| REQ-F-002 | AC-F2.1 - AC-F2.4 | TS-F-009 to TS-F-013 | Auto tests |
+| REQ-F-003 | AC-F3.1 - AC-F3.4 | TS-F-014 to TS-F-020 | Auto tests |
+| REQ-F-004 | AC-F4.1 - AC-F4.4 | TS-F-021 to TS-F-025 | Auto tests |
+| REQ-F-005 | AC-F5.1 - AC-F5.4 | TS-F-026 to TS-F-031 | Auto/manual |
+| REQ-P-001 | AC-P1.1 - AC-P1.4 | TS-NF-001 to TS-NF-007 | Perf tests |
+| REQ-P-002 | AC-P2.1 - AC-P2.5 | TS-NF-008 to TS-NF-018 | Platform |
+| REQ-P-003 | AC-P3.1 - AC-P3.3 | TS-NF-019 to TS-NF-021 | Auto tests |
+| REQ-P-004 | AC-P4.1 - AC-P4.3 | TS-NF-022 to TS-NF-024 | Manual |
+| REQ-P-005 | AC-P5.1 - AC-P5.2 | TS-NF-025 to TS-NF-027 | Manual |
 
 ---
 
 ## Document Control
 
 | Version | Date | Author | Changes |
-|---------|------|--------|---------|
-| 1.0 | 2025-12-12 | QA Team | Initial version - Phase 1 MVP acceptance criteria |
+| --- | --- | --- | --- |
+| 1.0 | 2025-12-12 | QA Team | Initial Phase 1 MVP criteria |
 
 **Review History:**
 
 | Reviewer | Role | Date | Status |
-|----------|------|------|--------|
+| --- | --- | --- | --- |
 | [Name] | Engineering Lead | TBD | Pending |
 | [Name] | QA Lead | TBD | Pending |
 | [Name] | Product Owner | TBD | Pending |
@@ -1444,4 +1453,4 @@ azp-local update
 
 ---
 
-**End of Document**
+## End of Document

@@ -8,7 +8,7 @@
 
 ### 1.1 High-Level Architecture Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     CLI Entry Point                             │
 │              (Command Parser & Orchestrator)                    │
@@ -203,7 +203,7 @@
 
 ### 3.1 Module Dependency Graph
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      Entry Point                            │
 └────────────┬────────────────────────────────────────────────┘
@@ -381,8 +381,10 @@
 
 **Alternatives**:
 
-- **Node.js**: Good cross-platform support, excellent JSON handling, but weaker YAML ecosystem
-- **Python**: Rapid development, good YAML support (PyYAML), but deployment complexity for CLI
+- **Node.js**: Good cross-platform support, excellent JSON handling,
+  but weaker YAML ecosystem
+- **Python**: Rapid development, good YAML support (PyYAML),
+  but deployment complexity for CLI
 
 **Decision**: .NET 8 (C#) as primary, with potential Node.js alternative
 
@@ -438,7 +440,7 @@
 
 ### 4.3 Project Structure (Solution Layout)
 
-```
+```text
 AzDevopsLocalRunner/
 ├── src/
 │   ├── AzDevopsLocalRunner.Core/
@@ -521,7 +523,7 @@ AzDevopsLocalRunner/
 
 ### 5.1 Validation Flow
 
-```
+```text
 Input YAML File(s)
         │
         v
@@ -555,7 +557,7 @@ ERROR       ┌────────────────┐
 
 ### 5.2 Template Resolution Flow
 
-```
+```text
 Parsed Pipeline AST
         │
         v
@@ -599,11 +601,12 @@ Parsed Pipeline AST
 
 **Data Items Flowing**:
 
-- Pipeline AST → Template references → File/URL paths → Template YAML → Bound parameters → Merged AST
+- Pipeline AST → Template references → File/URL paths → Template YAML
+  → Bound parameters → Merged AST
 
 ### 5.3 Variable Processing Flow
 
-```
+```text
 Pipeline AST + Variable Inputs
         │
         v
@@ -646,11 +649,12 @@ Pipeline AST + Variable Inputs
 
 **Data Items Flowing**:
 
-- Sources (files, inline, groups) → Variable map (scoped) → References found → Substitutions made → Output AST
+- Sources (files, inline, groups) → Variable map (scoped)
+  → References found → Substitutions made → Output AST
 
 ### 5.4 Execution Flow
 
-```
+```text
 Substituted Pipeline AST
         │
         v
@@ -747,11 +751,12 @@ Substituted Pipeline AST
 
 **Data Items Flowing**:
 
-- AST → Execution graph → Step executions → Results → Aggregated results → Final report
+- AST → Execution graph → Step executions → Results
+  → Aggregated results → Final report
 
 ### 5.5 End-to-End Processing Pipeline
 
-```
+```text
 ┌─────────────────┐
 │  User Input     │ (CLI args)
 │  - File path    │
@@ -834,7 +839,7 @@ v                 v
 ### 6.1 Integration Matrix
 
 | Component A | Component B | Integration Point | Data Exchanged |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | CLI Entry Point | File Resolver | Invokes | File paths, options |
 | File Resolver | YAML Parser | Loads files for | File content |
 | YAML Parser | Schema Manager | Validates | AST nodes |
@@ -855,7 +860,7 @@ v                 v
 
 #### 6.2.1 Between Parser and Schema Manager
 
-```
+```csharp
 ValidationRequest {
   astNode: AstNode,
   schemaVersion: string
@@ -870,7 +875,7 @@ ValidationResult {
 
 #### 6.2.2 Between Template Resolver and File Resolver
 
-```
+```csharp
 TemplateReference {
   path: string,
   isRemote: boolean,
@@ -886,7 +891,7 @@ ResolvedTemplate {
 
 #### 6.2.3 Between Variable Processor and Substitution Engine
 
-```
+```csharp
 SubstitutionRequest {
   text: string,
   variableMap: Dictionary<string, string>,
@@ -902,7 +907,7 @@ SubstitutionResult {
 
 #### 6.2.4 Between Execution Engine and Step Executor
 
-```
+```csharp
 StepExecutionContext {
   stepDefinition: Step,
   environmentVariables: Dictionary<string, string>,
@@ -925,7 +930,7 @@ StepExecutionResult {
 
 ### 7.1 Mock Service Layer Design
 
-```
+```text
 ┌──────────────────────────────────────┐
 │   Mock Service Configuration         │
 │   (config.yml / appsettings.json)    │
@@ -1063,7 +1068,7 @@ Example Config (YAML):
 
 ### 7.3 Mock Service Registry Pattern
 
-```
+```text
 IServiceRegistry (Interface)
   ├── RegisterVariableGroupService(service)
   ├── RegisterServiceConnectionService(service)
@@ -1085,7 +1090,7 @@ MockServiceRegistry (Implementation)
 
 ### 8.1 Plugin/Task Extension Points
 
-```
+```text
 ┌─────────────────────────────────────┐
 │  Custom Task Plugin System          │
 └────────────┬────────────────────────┘
@@ -1188,7 +1193,7 @@ public class InputDefinition
 
 ### 8.3 Built-in Task Registry
 
-```
+```text
 TaskRegistry
 ├── PowerShellTask
 │   └── Executes PowerShell scripts (.ps1)
@@ -1234,7 +1239,8 @@ public class CustomDockerBuildTask : ITask
         try
         {
             // Execute Docker build
-            var command = $"docker build -t {imageName} -f {dockerfile} {buildArgs} .";
+            var command = $"docker build -t {imageName} " +
+                $"-f {dockerfile} {buildArgs} .";
             var result = await ExecuteCommandAsync(command, context);
             return result;
         }
@@ -1293,7 +1299,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 8.5 Extension Loading Mechanism
 
-```
+```text
 ┌────────────────────────────────┐
 │ Extension Discovery            │
 │ (Scan plugins directory)       │
@@ -1328,7 +1334,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 9.1 Execution Isolation
 
-```
+```text
 ┌─────────────────────────────────┐
 │  Step Execution Context         │
 └────────────┬────────────────────┘
@@ -1346,8 +1352,10 @@ public class CustomDockerBuildTask : ITask
 
 ### 9.2 Security Features
 
-1. **Environment Variable Isolation**: Each step execution clears inherited env vars unless explicitly passed
-2. **Working Directory Sandboxing**: Steps confined to designated directories
+1. **Environment Variable Isolation**: Each step execution clears
+   inherited env vars unless explicitly passed
+2. **Working Directory Sandboxing**: Steps confined to designated
+   directories
 3. **Command Whitelisting**: Optional command validation
 4. **Timeout Enforcement**: Prevent infinite loops
 5. **Resource Limits**: Memory and CPU limits per task
@@ -1360,7 +1368,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 10.1 Error Severity Levels
 
-```
+```text
 Critical: Pipeline cannot proceed
 ├── YAML syntax errors
 ├── Missing required files
@@ -1387,7 +1395,7 @@ Low: Diagnostic information
 
 ### 10.2 Error Reporting Format
 
-```
+```text
 [ERROR] {Component}: {ErrorCode}
         Location: {File}:{Line}:{Column}
         Message: {Clear description}
@@ -1408,7 +1416,7 @@ Example:
 ## 11. Summary Table
 
 | Aspect | Decision | Rationale |
-|--------|----------|-----------|
+| --- | --- | --- |
 | **Language** | C# / .NET 8 | Cross-platform, strong ecosystem |
 | **YAML Library** | YamlDotNet | Industry standard for .NET |
 | **CLI Framework** | System.CommandLine | Modern, built-in to .NET 8 |
@@ -1417,8 +1425,8 @@ Example:
 | **Task Extension** | Interface-based plugins | Type-safe, discoverable |
 | **Service Mocking** | Configuration-driven | Flexible, testable |
 | **Execution Model** | Sequential with parallel jobs | Matches ADO behavior |
-| **Error Strategy** | Multi-level with context | Developer-friendly reporting |
-| **Performance Target** | <5s startup, <1s syntax validation | Meets requirements |
+| **Error Strategy** | Multi-level with context | Developer-friendly |
+| **Performance Target** | <5s startup, <1s validation | Meets requirements |
 
 ---
 
