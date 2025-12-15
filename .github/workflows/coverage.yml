@@ -1,0 +1,168 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  SOLUTION_PATH: 'AdoPipelinesLocalRunner.sln'
+  MIN_COVERAGE: 80
+
+jobs:
+  coverage:
+    name: Code Coverage Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build solution
+      run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+    - name: Run tests with coverage
+      run: |
+        dotnet test ${{ env.SOLUTION_PATH }} \
+          --configuration Release \
+          --no-build \
+          --verbosity minimal \
+          --logger "trx;LogFileName=test-results.trx" \
+          /p:CollectCoverage=true \
+          /p:CoverletOutputFormat="opencover,cobertura,json" \
+          /p:CoverletOutput=./coverage/ \
+          /p:Exclude="[*.Tests]*"
+
+    - name: Install ReportGenerator
+      run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
+    - name: Generate detailed coverage report
+      run: |
+        reportgenerator \
+          -reports:"**/coverage/*.opencover.xml" \
+          -targetdir:"coverage-report" \
+          -reporttypes:"Html;HtmlSummary;Badges;TextSummary;JsonSummary;MarkdownSummary" \
+          -assemblyfilters:"+AdoPipelinesLocalRunner*;-*.Tests*" \
+          -classfilters:"-System*;-Microsoft*"
+
+    - name: Display coverage summary
+      run: cat coverage-report/Summary.txt
+
+    - name: Parse coverage metrics
+      id: coverage
+      run: |
+        LINE_COVERAGE=$(jq -r '.summary.linecoverage' coverage-report/Summary.json)
+        BRANCH_COVERAGE=$(jq -r '.summary.branchcoverage' coverage-report/Summary.json)
+        
+        echo "line=$LINE_COVERAGE" >> $GITHUB_OUTPUT
+        echo "branch=$BRANCH_COVERAGE" >> $GITHUB_OUTPUT
+        
+        echo "### Coverage Metrics" >> $GITHUB_STEP_SUMMARY
+        echo "- **Line Coverage**: $LINE_COVERAGE%" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch Coverage**: $BRANCH_COVERAGE%" >> $GITHUB_STEP_SUMMARY
+
+    - name: Verify minimum coverage threshold
+      run: |
+        LINE_COVERAGE=${{ steps.coverage.outputs.line }}
+        MIN_COVERAGE=${{ env.MIN_COVERAGE }}
+        
+        echo "📊 Coverage Analysis"
+        echo "===================="
+        echo "Line Coverage: $LINE_COVERAGE%"
+        echo "Minimum Required: $MIN_COVERAGE%"
+        echo ""
+        
+        if (( $(echo "$LINE_COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+          echo "❌ FAILED: Coverage $LINE_COVERAGE% is below minimum threshold of $MIN_COVERAGE%"
+          echo ""
+          echo "Please add more tests to increase coverage."
+          exit 1
+        else
+          echo "✅ PASSED: Coverage $LINE_COVERAGE% meets minimum threshold of $MIN_COVERAGE%"
+        fi
+
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports
+        path: |
+          coverage-report/
+          **/coverage/*.xml
+          **/coverage/*.json
+          **/TestResults/*.trx
+        retention-days: 30
+
+    - name: Create coverage badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      if: github.ref == 'refs/heads/main'
+      with:
+        auth: ${{ secrets.GIST_SECRET }}
+        gistID: YOUR_GIST_ID_HERE
+        filename: coverage-badge.json
+        label: Coverage
+        message: ${{ steps.coverage.outputs.line }}%
+        color: ${{ steps.coverage.outputs.line >= 80 && 'brightgreen' || steps.coverage.outputs.line >= 60 && 'yellow' || 'red' }}
+
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const lineCoverage = '${{ steps.coverage.outputs.line }}';
+          const branchCoverage = '${{ steps.coverage.outputs.branch }}';
+          const minCoverage = '${{ env.MIN_COVERAGE }}';
+          const passed = parseFloat(lineCoverage) >= parseFloat(minCoverage);
+          
+          const comment = `## 📊 Code Coverage Report
+          
+          | Metric | Coverage | Status |
+          |--------|----------|--------|
+          | **Line Coverage** | **${lineCoverage}%** | ${passed ? '✅ PASS' : '❌ FAIL'} |
+          | **Branch Coverage** | **${branchCoverage}%** | ℹ️ Info |
+          | **Minimum Required** | ${minCoverage}% | 🎯 Target |
+          
+          ${passed 
+            ? '✅ **Coverage threshold met!** Great job maintaining test coverage.' 
+            : '❌ **Coverage below threshold.** Please add tests to meet the minimum requirement.'}
+          
+          📁 [Download detailed HTML report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          <details>
+          <summary>📈 Coverage by Assembly</summary>
+          
+          \`\`\`
+          $(cat coverage-report/Summary.txt)
+          \`\`\`
+          
+          </details>
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+    - name: Publish test results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: '**/TestResults/*.trx'
+        check_name: 'Test Results'
+        comment_mode: 'off'
