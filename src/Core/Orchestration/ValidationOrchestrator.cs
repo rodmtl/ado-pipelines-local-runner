@@ -104,6 +104,56 @@ public class ValidationOrchestrator : IValidationOrchestrator
         PipelineDocument? doc = null;
         long parsingMs = 0, syntaxMs = 0, schemaMs = 0, tmplMs = 0, varMs = 0;
 
+        if (!File.Exists(request.Path))
+        {
+            errorList.Add(new ValidationError
+            {
+                Code = "PIPELINE_FILE_NOT_FOUND",
+                Message = $"Pipeline file not found: {request.Path}",
+                Severity = Severity.Error,
+                Location = new SourceLocation { FilePath = request.Path, Line = 0, Column = 0 },
+                Suggestion = "Verify the --pipeline path or provide an absolute path."
+            });
+
+            var endMissing = DateTimeOffset.UtcNow;
+            var metricsMissing = new ProcessingMetrics
+            {
+                StartTime = start,
+                EndTime = endMissing,
+                TotalTimeMs = (long)(endMissing - start).TotalMilliseconds,
+                ParsingTimeMs = parsingMs,
+                SyntaxValidationTimeMs = syntaxMs,
+                SchemaValidationTimeMs = schemaMs,
+                TemplateResolutionTimeMs = tmplMs,
+                VariableProcessingTimeMs = varMs
+            };
+
+            return new ValidateResponse
+            {
+                Status = ValidationStatus.Failed,
+                Summary = new ValidationSummary
+                {
+                    FilesValidated = 0,
+                    ErrorCount = errorList.Count,
+                    WarningCount = warningList.Count,
+                    InfoCount = 0,
+                    TemplatesResolved = 0,
+                    VariablesResolved = 0
+                },
+                Details = new ValidationDetails
+                {
+                    SyntaxValidation = null,
+                    SchemaValidation = null,
+                    TemplateResolution = null,
+                    VariableProcessing = null,
+                    AllErrors = errorList,
+                    AllWarnings = warningList
+                },
+                Metrics = metricsMissing,
+                ValidatedDocument = null
+            };
+        }
+
         try
         {
             _logger.LogInformation("Parsing YAML: {Path}", request.Path);
@@ -111,6 +161,60 @@ public class ValidationOrchestrator : IValidationOrchestrator
             var parseResult = await _parser.ParseFileAsync<PipelineDocument>(request.Path, ct);
             parsingMs = (long)(DateTimeOffset.UtcNow - parseStart).TotalMilliseconds;
             doc = parseResult.Data ?? new PipelineDocument { SourcePath = request.Path, RawContent = null };
+
+            if (parseResult.Errors?.Any() == true)
+            {
+                errorList.AddRange(parseResult.Errors.Select(e => new ValidationError
+                {
+                    Code = e.Code,
+                    Message = e.Message,
+                    Severity = e.Severity,
+                    Location = e.Location,
+                    RelatedLocations = e.RelatedLocations,
+                    Suggestion = e.Suggestion
+                }));
+
+                if (!parseResult.Success)
+                {
+                    var endParse = DateTimeOffset.UtcNow;
+                    var metricsParse = new ProcessingMetrics
+                    {
+                        StartTime = start,
+                        EndTime = endParse,
+                        TotalTimeMs = (long)(endParse - start).TotalMilliseconds,
+                        ParsingTimeMs = parsingMs,
+                        SyntaxValidationTimeMs = syntaxMs,
+                        SchemaValidationTimeMs = schemaMs,
+                        TemplateResolutionTimeMs = tmplMs,
+                        VariableProcessingTimeMs = varMs
+                    };
+
+                    return new ValidateResponse
+                    {
+                        Status = ValidationStatus.Failed,
+                        Summary = new ValidationSummary
+                        {
+                            FilesValidated = 1,
+                            ErrorCount = errorList.Count,
+                            WarningCount = warningList.Count,
+                            InfoCount = 0,
+                            TemplatesResolved = 0,
+                            VariablesResolved = 0
+                        },
+                        Details = new ValidationDetails
+                        {
+                            SyntaxValidation = null,
+                            SchemaValidation = null,
+                            TemplateResolution = null,
+                            VariableProcessing = null,
+                            AllErrors = errorList,
+                            AllWarnings = warningList
+                        },
+                        Metrics = metricsParse,
+                        ValidatedDocument = doc
+                    };
+                }
+            }
 
             _logger.LogInformation("Running syntax validation");
             var syntaxStart = DateTimeOffset.UtcNow;

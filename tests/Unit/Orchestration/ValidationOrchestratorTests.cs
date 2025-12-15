@@ -6,6 +6,8 @@ using AdoPipelinesLocalRunner.Core.Orchestration;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
+using System;
+using System.IO;
 using Xunit;
 using OutputFormatConfig = AdoPipelinesLocalRunner.Contracts.Configuration.OutputFormat;
 
@@ -74,9 +76,11 @@ public class ValidationOrchestratorTests
 
         var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
 
+        var pipelinePath = CreateTempPipelineFile();
+
         var response = await orchestrator.ValidateAsync(new ValidateRequest
         {
-            Path = "pipeline.yml",
+            Path = pipelinePath,
             BaseDirectory = ".",
             SchemaVersion = null,
             VariableFiles = Array.Empty<string>(),
@@ -152,9 +156,11 @@ public class ValidationOrchestratorTests
 
         var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
 
+        var pipelinePath = CreateTempPipelineFile();
+
         var response = await orchestrator.ValidateAsync(new ValidateRequest
         {
-            Path = "pipeline.yml",
+            Path = pipelinePath,
             BaseDirectory = ".",
             SchemaVersion = null,
             VariableFiles = Array.Empty<string>(),
@@ -183,9 +189,11 @@ public class ValidationOrchestratorTests
 
         var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
 
+        var pipelinePath = CreateTempPipelineFile();
+
         var response = await orchestrator.ValidateAsync(new ValidateRequest
         {
-            Path = "pipeline.yml",
+            Path = pipelinePath,
             BaseDirectory = null,
             SchemaVersion = null,
             VariableFiles = Array.Empty<string>(),
@@ -194,5 +202,50 @@ public class ValidationOrchestratorTests
 
         response.Status.Should().Be(ValidationStatus.Failed);
         response.Details.AllErrors.Should().ContainSingle(e => e.Code == "VALIDATION_ERROR");
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ShouldFailFast_WhenPipelineFileMissing()
+    {
+        var parser = new Mock<IYamlParser>(MockBehavior.Strict);
+        var syntax = new Mock<ISyntaxValidator>(MockBehavior.Strict);
+        var schema = new Mock<ISchemaManager>(MockBehavior.Strict);
+        var templates = new Mock<ITemplateResolver>(MockBehavior.Strict);
+        var variables = new Mock<IVariableProcessor>(MockBehavior.Strict);
+
+        var reporter = new Mock<IErrorReporter>();
+        reporter.Setup(r => r.GenerateReport(It.IsAny<string>(), It.IsAny<IReadOnlyList<ValidationError>>(), It.IsAny<IReadOnlyList<ValidationError>>(), OutputFormatConfig.Text))
+            .Returns(new ReportOutput { Content = "missing", Format = OutputFormatConfig.Text });
+
+        var logger = new Mock<ILogger<ValidationOrchestrator>>();
+
+        var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
+
+        var missingPath = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.yml");
+
+        var response = await orchestrator.ValidateAsync(new ValidateRequest
+        {
+            Path = missingPath,
+            BaseDirectory = ".",
+            SchemaVersion = null,
+            VariableFiles = Array.Empty<string>(),
+            FailOnWarnings = false
+        }, CancellationToken.None);
+
+        response.Status.Should().Be(ValidationStatus.Failed);
+        response.Details.AllErrors.Should().ContainSingle(e => e.Code == "PIPELINE_FILE_NOT_FOUND");
+
+        parser.Verify(p => p.ParseFileAsync<PipelineDocument>(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        syntax.VerifyNoOtherCalls();
+        schema.VerifyNoOtherCalls();
+        templates.VerifyNoOtherCalls();
+        variables.VerifyNoOtherCalls();
+    }
+
+    private static string CreateTempPipelineFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pipeline-{Guid.NewGuid():N}.yml");
+        File.WriteAllText(path, "trigger: none\n");
+        return path;
     }
 }
