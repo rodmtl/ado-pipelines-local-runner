@@ -45,7 +45,7 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat="opencover,cobertura,json" \
-          /p:CoverletOutput=./coverage/coverage. \
+          /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage. \
           /p:Exclude="[*.Tests]*"
 
     - name: Install ReportGenerator
@@ -54,7 +54,7 @@ jobs:
     - name: Generate detailed coverage report
       run: |
         reportgenerator \
-          -reports:"tests/coverage/coverage.opencover.xml" \
+          -reports:"${{ github.workspace }}/tests/coverage/coverage.opencover.xml" \
           -targetdir:"coverage-report" \
           -reporttypes:"Html;HtmlSummary;Badges;TextSummary;JsonSummary;MarkdownSummary" \
           -assemblyfilters:"+AdoPipelinesLocalRunner*;-*.Tests*" \
