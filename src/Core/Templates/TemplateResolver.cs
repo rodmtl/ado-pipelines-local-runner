@@ -62,7 +62,8 @@ public class TemplateResolver : ITemplateResolver
                         FilePath = templateReference,
                         Line = 0,
                         Column = 0
-                    }
+                    },
+                    Suggestion = $"Reduce template nesting or increase max depth (currently {context.MaxDepth})"
                 });
 
                 return new TemplateResolutionResult

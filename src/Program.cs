@@ -27,18 +27,54 @@ public class Program
     public static RootCommand BuildRootCommand(IServiceProvider serviceProvider)
     {
         var rootCommand = new RootCommand("Azure DevOps Pipelines Local Runner - Validate and test pipelines locally");
+        rootCommand.SetHandler(() =>
+        {
+            Console.WriteLine("Azure DevOps Pipelines Local Runner");
+            Console.WriteLine("Usage: azp-local validate [OPTIONS]");
+            Console.WriteLine("\nExamples:");
+            Console.WriteLine("  azp-local validate --pipeline azure-pipelines.yml");
+            Console.WriteLine("  azp-local validate --pipeline build.yml --base-path ./ --output json");
+            Console.WriteLine("  azp-local validate --pipeline ci.yml --var buildConfig=Release --strict");
+            Console.WriteLine("\nUse 'validate --help' to see all available options");
+        });
 
         var validateCmd = new Command("validate", "Validate an Azure DevOps pipeline YAML file");
-        var pipelineOpt = new Option<string>(name: "--pipeline", description: "Path to the pipeline YAML file") { IsRequired = true };
-        var basePathOpt = new Option<string?>(name: "--base-path", description: "Base path for resolving local templates");
-        var schemaVerOpt = new Option<string?>(name: "--schema-version", description: "Schema version to validate against");
-        var varsOpt = new Option<string[]>(name: "--vars", description: "Variable files to include") { Arity = ArgumentArity.ZeroOrMore };
-        var inlineVarOpt = new Option<string[]>(name: "--var", description: "Inline variable key=value", getDefaultValue: () => Array.Empty<string>()) { Arity = ArgumentArity.ZeroOrMore };
-        var strictOpt = new Option<bool>(name: "--strict", description: "Treat warnings as errors");
-        var outputOpt = new Option<string>(name: "--output", description: "Output format: text|json|sarif|markdown", getDefaultValue: () => "text");
-        var allowUnresolvedOpt = new Option<bool>(name: "--allow-unresolved", description: "Allow unresolved variables (report as warnings)");
-        var verbosityOpt = new Option<string>(name: "--verbosity", description: "Logging verbosity: quiet|minimal|normal|detailed", getDefaultValue: () => "normal");
-        var logFileOpt = new Option<string?>(name: "--log-file", description: "Optional log file path");
+        var pipelineOpt = new Option<string>(
+            name: "--pipeline", 
+            description: "Path to the pipeline YAML file to validate") 
+        { IsRequired = true };
+        var basePathOpt = new Option<string?>(
+            name: "--base-path", 
+            description: "Base directory path for resolving local template references (default: current directory)");
+        var schemaVerOpt = new Option<string?>(
+            name: "--schema-version", 
+            description: "Azure DevOps schema version to validate against (e.g., '2023-01'). If not specified, uses latest");
+        var varsOpt = new Option<string[]>(
+            name: "--vars", 
+            description: "Variable files to include in validation (YAML format)") 
+        { Arity = ArgumentArity.ZeroOrMore };
+        var inlineVarOpt = new Option<string[]>(
+            name: "--var", 
+            description: "Inline variable in key=value format (can be used multiple times)", 
+            getDefaultValue: () => Array.Empty<string>()) 
+        { Arity = ArgumentArity.ZeroOrMore };
+        var strictOpt = new Option<bool>(
+            name: "--strict", 
+            description: "Treat all warnings as errors; exit with code 1 if warnings are found");
+        var outputOpt = new Option<string>(
+            name: "--output", 
+            description: "Output format: text (default)|json|sarif|markdown", 
+            getDefaultValue: () => "text");
+        var allowUnresolvedOpt = new Option<bool>(
+            name: "--allow-unresolved", 
+            description: "Allow unresolved variables and report them as warnings instead of errors");
+        var verbosityOpt = new Option<string>(
+            name: "--verbosity", 
+            description: "Logging verbosity level: quiet|minimal|normal|detailed (default: normal)", 
+            getDefaultValue: () => "normal");
+        var logFileOpt = new Option<string?>(
+            name: "--log-file", 
+            description: "Optional file path to save validation report");
 
         validateCmd.AddOption(pipelineOpt);
         validateCmd.AddOption(basePathOpt);

@@ -66,18 +66,28 @@ public class ErrorReporter : IErrorReporter
         }
         if (errors.Count > 0)
         {
-            sb.AppendLine("Errors:");
+            sb.AppendLine("\nErrors:");
             foreach (var e in errors)
             {
-                sb.AppendLine($"- [{e.Code}] {e.Message} ({e.Location?.FilePath}:{e.Location?.Line})");
+                sb.AppendLine($"  [{e.Code}] {e.Message}");
+                sb.AppendLine($"  Location: {e.Location?.FilePath}:{e.Location?.Line}:{e.Location?.Column ?? 1}");
+                if (!string.IsNullOrWhiteSpace(e.Suggestion))
+                {
+                    sb.AppendLine($"  ✓ Fix: {e.Suggestion}");
+                }
             }
         }
         if (warnings.Count > 0)
         {
-            sb.AppendLine("Warnings:");
+            sb.AppendLine("\nWarnings:");
             foreach (var w in warnings)
             {
-                sb.AppendLine($"- [{w.Code}] {w.Message} ({w.Location?.FilePath}:{w.Location?.Line})");
+                sb.AppendLine($"  [{w.Code}] {w.Message}");
+                sb.AppendLine($"  Location: {w.Location?.FilePath}:{w.Location?.Line}:{w.Location?.Column ?? 1}");
+                if (!string.IsNullOrWhiteSpace(w.Suggestion))
+                {
+                    sb.AppendLine($"  ✓ Fix: {w.Suggestion}");
+                }
             }
         }
         return sb.ToString();
@@ -120,12 +130,40 @@ public class ErrorReporter : IErrorReporter
 
     private static string BuildJson(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings, Dictionary<string, (int errors, int warnings)> categories)
     {
+        var errorDetails = errors.Select(e => new
+        {
+            code = e.Code,
+            message = e.Message,
+            severity = e.Severity.ToString(),
+            location = new
+            {
+                file = e.Location?.FilePath,
+                line = e.Location?.Line,
+                column = e.Location?.Column
+            },
+            suggestion = e.Suggestion
+        }).ToList();
+
+        var warningDetails = warnings.Select(w => new
+        {
+            code = w.Code,
+            message = w.Message,
+            severity = w.Severity.ToString(),
+            location = new
+            {
+                file = w.Location?.FilePath,
+                line = w.Location?.Line,
+                column = w.Location?.Column
+            },
+            suggestion = w.Suggestion
+        }).ToList();
+
         var payload = new
         {
             source = sourcePath,
             summary = new { errors = errors.Count, warnings = warnings.Count, categories = categories },
-            errors,
-            warnings
+            errors = errorDetails,
+            warnings = warningDetails
         };
         return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
     }
