@@ -48,8 +48,11 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=coverage-results/coverage \
+          /p:CoverletOutput=$PWD/coverage-results/coverage \
           /p:Exclude="[*.Tests]*"
+
+    - name: Find and list coverage files
+      run: find . -name "*.opencover.xml" -o -name "coverage.*" | head -20
 
     - name: Install ReportGenerator
       run: dotnet tool install -g dotnet-reportgenerator-globaltool
