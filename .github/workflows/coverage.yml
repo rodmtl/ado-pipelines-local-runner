@@ -45,7 +45,7 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage.opencover.xml \
+          /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage \
           /p:Exclude="[*.Tests]*"
 
     - name: Install ReportGenerator
