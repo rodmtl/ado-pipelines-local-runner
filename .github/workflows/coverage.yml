@@ -36,9 +36,6 @@ jobs:
     - name: Build solution
       run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
 
-    - name: Create coverage directory
-      run: mkdir -p coverage-results
-
     - name: Run tests with coverage
       run: |
         dotnet test ${{ env.SOLUTION_PATH }} \
@@ -48,11 +45,21 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=$PWD/coverage-results/coverage \
+          /p:CoverletOutput=./coverage.opencover.xml \
           /p:Exclude="[*.Tests]*"
 
-    - name: Find and list coverage files
-      run: find . -name "*.opencover.xml" -o -name "coverage.*" | head -20
+    - name: Find coverage file
+      run: |
+        if [ -f ./coverage.opencover.xml ]; then
+          echo "Coverage file found in current directory"
+          ls -la ./coverage.opencover.xml
+        elif [ -f ./tests/bin/Release/net8.0/coverage.opencover.xml ]; then
+          echo "Coverage file found in tests output"
+          ls -la ./tests/bin/Release/net8.0/coverage.opencover.xml
+        else
+          echo "Searching for all coverage files..."
+          find . -name "*.opencover.xml" -type f 2>/dev/null || echo "No coverage files found"
+        fi
 
     - name: Install ReportGenerator
       run: dotnet tool install -g dotnet-reportgenerator-globaltool
@@ -60,7 +67,7 @@ jobs:
     - name: Generate detailed coverage report
       run: |
         reportgenerator \
-          -reports:"coverage-results/coverage.opencover.xml" \
+          -reports:"./coverage.opencover.xml" \
           -targetdir:"coverage-report" \
           -reporttypes:"Html;HtmlSummary;Badges;TextSummary;JsonSummary;MarkdownSummary" \
           -assemblyfilters:"+AdoPipelinesLocalRunner*;-*.Tests*" \
@@ -108,7 +115,7 @@ jobs:
         name: coverage-reports
         path: |
           coverage-report/
-          coverage-results/
+          ./coverage.opencover.xml
           **/TestResults/*.trx
         retention-days: 30
 
