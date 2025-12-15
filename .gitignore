@@ -398,3 +398,7 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 .idea/
+
+
+# coverage reports local folder
+/tests/coverage-report/
