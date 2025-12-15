@@ -1,4 +1,5 @@
 using AdoPipelinesLocalRunner.Contracts;
+using System.Text.RegularExpressions;
 
 namespace AdoPipelinesLocalRunner.Core.Templates;
 
@@ -165,18 +166,47 @@ public class TemplateResolver : ITemplateResolver
     {
         var errors = new List<ValidationError>();
         var expandedDocument = document;
+        var resolvedTemplates = new List<ResolvedTemplate>();
 
         try
         {
-            // In Phase 1, we'll do basic template expansion
-            // Real implementation would recursively resolve template: references
-            
+            var templateRefs = ExtractTemplateReferences(document.RawContent);
+            var currentStack = context.ResolutionStack?.ToList() ?? new List<string>();
+
+            foreach (var templateRef in templateRefs)
+            {
+                var nextContext = new TemplateResolutionContext
+                {
+                    BaseDirectory = context.BaseDirectory,
+                    Parameters = context.Parameters,
+                    MaxDepth = context.MaxDepth,
+                    CurrentDepth = context.CurrentDepth + 1,
+                    ResolutionStack = currentStack.Concat(new[] { templateRef }).ToList(),
+                    RepositoryContext = context.RepositoryContext
+                };
+
+                var resolution = ResolveInternal(templateRef, nextContext);
+                if (!resolution.Success)
+                {
+                    errors.AddRange(resolution.Errors);
+                    continue;
+                }
+
+                resolvedTemplates.Add(new ResolvedTemplate
+                {
+                    Reference = templateRef,
+                    ResolvedSource = resolution.Source,
+                    Parameters = context.Parameters,
+                    Depth = nextContext.CurrentDepth
+                });
+            }
+
             return new TemplateExpansionResult
             {
-                Success = true,
-                Errors = Array.Empty<ValidationError>(),
+                Success = errors.Count == 0,
+                Errors = errors,
                 ExpandedDocument = expandedDocument,
-                ResolvedTemplates = new List<ResolvedTemplate>()
+                ResolvedTemplates = resolvedTemplates
             };
         }
         catch (Exception ex)
@@ -215,6 +245,24 @@ public class TemplateResolver : ITemplateResolver
         {
             return false;
         }
+    }
+
+    private IReadOnlyList<string> ExtractTemplateReferences(string? rawContent)
+    {
+        if (string.IsNullOrWhiteSpace(rawContent))
+            return Array.Empty<string>();
+
+        var refs = new List<string>();
+        var regex = new Regex(@"template:\s*(?<ref>[^\s]+)", RegexOptions.Compiled);
+        var matches = regex.Matches(rawContent);
+        foreach (Match match in matches)
+        {
+            var value = match.Groups["ref"].Value.Trim();
+            if (!string.IsNullOrEmpty(value))
+                refs.Add(value);
+        }
+
+        return refs;
     }
 
     private string ResolvePath(string reference, string baseDirectory)

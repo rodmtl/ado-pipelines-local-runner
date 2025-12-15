@@ -1,6 +1,10 @@
 using AdoPipelinesLocalRunner.Contracts;
 using AdoPipelinesLocalRunner.Contracts.Commands;
 using Microsoft.Extensions.Logging;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
+using System.IO;
+using System.Linq;
 
 namespace AdoPipelinesLocalRunner.Core.Orchestration;
 
@@ -19,6 +23,61 @@ public class ValidationOrchestrator : IValidationOrchestrator
     private readonly IErrorReporter _errorReporter;
     private readonly ILogger<ValidationOrchestrator> _logger;
 
+
+        private IReadOnlyDictionary<string, object> LoadVariables(IEnumerable<string> files, IReadOnlyDictionary<string, string>? inline, string? baseDir, List<ValidationError> errors)
+        {
+            var deserializer = new DeserializerBuilder()
+                .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                .IgnoreUnmatchedProperties()
+                .Build();
+
+            var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in files)
+            {
+                var path = baseDir != null && !Path.IsPathRooted(file) ? Path.Combine(baseDir, file) : file;
+                if (!File.Exists(path))
+                {
+                    errors.Add(new ValidationError
+                    {
+                        Code = "VARIABLE_FILE_NOT_FOUND",
+                        Message = $"Variable file not found: {path}",
+                        Severity = Severity.Error,
+                        Location = new SourceLocation { FilePath = path, Line = 0, Column = 0 }
+                    });
+                    continue;
+                }
+
+                try
+                {
+                    var content = File.ReadAllText(path);
+                    var parsed = deserializer.Deserialize<Dictionary<string, object>>(content) ?? new Dictionary<string, object>();
+                    foreach (var kvp in parsed)
+                    {
+                        result[kvp.Key] = kvp.Value;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new ValidationError
+                    {
+                        Code = "VARIABLE_FILE_INVALID",
+                        Message = $"Failed to read variables from {path}: {ex.Message}",
+                        Severity = Severity.Error,
+                        Location = new SourceLocation { FilePath = path, Line = 0, Column = 0 }
+                    });
+                }
+            }
+
+            if (inline != null)
+            {
+                foreach (var kvp in inline)
+                {
+                    result[kvp.Key] = kvp.Value;
+                }
+            }
+
+            return result;
+        }
     public ValidationOrchestrator(
         IYamlParser parser,
         ISyntaxValidator syntaxValidator,
@@ -90,14 +149,16 @@ public class ValidationOrchestrator : IValidationOrchestrator
             {
                 _logger.LogInformation("Processing variables");
                 var varStart = DateTimeOffset.UtcNow;
+                var pipelineVars = LoadVariables(request.VariableFiles ?? Array.Empty<string>(), request.InlineVariables, request.BaseDirectory, errorList);
                 var vctx = new VariableContext
                 {
                     SystemVariables = new Dictionary<string, object>(),
-                    PipelineVariables = null,
+                    PipelineVariables = pipelineVars,
                     VariableGroups = request.MockVariableGroups,
                     EnvironmentVariables = null,
                     Parameters = null,
-                    FailOnUnresolved = request.FailOnWarnings
+                    FailOnUnresolved = !request.AllowUnresolvedVariables,
+                    Scope = VariableScope.Pipeline
                 };
                 var vresult = await _variableProcessor.ProcessAsync(doc, vctx, ct);
                 varMs = (long)(DateTimeOffset.UtcNow - varStart).TotalMilliseconds;

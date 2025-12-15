@@ -163,11 +163,52 @@ public class VariableProcessor : IVariableProcessor
             var varValidation = ValidateVariables(document, context);
             errors.AddRange(varValidation.Errors);
 
+            // Track resolved variables from provided context (pipeline/inline) for reporting
+            if (context.PipelineVariables != null)
+            {
+                foreach (var kvp in context.PipelineVariables)
+                {
+                    resolvedVars.Add(new ResolvedVariable
+                    {
+                        Name = kvp.Key,
+                        Value = kvp.Value,
+                        Source = "pipeline",
+                        Scope = context.Scope,
+                        IsSecret = false
+                    });
+                }
+            }
+
+            // Expand variables in raw content if available
+            string? newContent = document.RawContent;
+            if (!string.IsNullOrEmpty(document.RawContent))
+            {
+                try
+                {
+                    newContent = ExpandVariables(document.RawContent!, context);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new ValidationError
+                    {
+                        Code = "VARIABLE_EXPANSION_ERROR",
+                        Message = ex.Message,
+                        Severity = Severity.Error,
+                        Location = new SourceLocation
+                        {
+                            FilePath = document.SourcePath ?? "<unknown>",
+                            Line = 0,
+                            Column = 0
+                        }
+                    });
+                }
+            }
+
             var resolvedVarsDict = resolvedVars.ToDictionary(v => v.Name);
             return new VariableProcessingResult
             {
                 Success = errors.Count == 0,
-                ProcessedDocument = document,
+                ProcessedDocument = string.IsNullOrEmpty(document.RawContent) ? document : document with { RawContent = newContent },
                 Errors = errors,
                 ResolvedVariables = resolvedVarsDict
             };

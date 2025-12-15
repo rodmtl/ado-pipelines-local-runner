@@ -79,17 +79,63 @@ public class SchemaManager : ISchemaManager
             }
 
             // Basic validation: check for required root properties
-            // In Phase 1, we do simple structural validation
-            if (document != null && (document.Trigger == null))
+            if (document == null)
             {
-                // Not a hard error, just warning (handled by syntax validator)
+                errors.Add(new ValidationError
+                {
+                    Code = "SCHEMA_INVALID_DOCUMENT",
+                    Message = "Pipeline document is null",
+                    Severity = Severity.Error,
+                    Location = new SourceLocation
+                    {
+                        FilePath = document?.SourcePath ?? "<unknown>",
+                        Line = 1,
+                        Column = 1
+                    }
+                });
+            }
+            else
+            {
+                if (document.Trigger == null)
+                {
+                    errors.Add(new ValidationError
+                    {
+                        Code = "SCHEMA_MISSING_TRIGGER",
+                        Message = "Required property 'trigger' is missing",
+                        Severity = Severity.Error,
+                        Location = new SourceLocation
+                        {
+                            FilePath = document.SourcePath ?? "<unknown>",
+                            Line = 1,
+                            Column = 1
+                        },
+                        Suggestion = "Add a trigger section (e.g. 'trigger: none' or branches)."
+                    });
+                }
+
+                if (document.Stages == null && document.Jobs == null && document.Steps == null)
+                {
+                    errors.Add(new ValidationError
+                    {
+                        Code = "SCHEMA_MISSING_WORK",
+                        Message = "Pipeline must define stages, jobs, or steps",
+                        Severity = Severity.Error,
+                        Location = new SourceLocation
+                        {
+                            FilePath = document.SourcePath ?? "<unknown>",
+                            Line = 1,
+                            Column = 1
+                        },
+                        Suggestion = "Add at least one stage, job, or step definition."
+                    });
+                }
             }
 
             return new SchemaValidationResult
             {
-                IsValid = true,
+                IsValid = errors.Count == 0,
                 SchemaVersion = version,
-                Errors = Array.Empty<ValidationError>()
+                Errors = errors.ToArray()
             };
         }
         catch (Exception ex)
