@@ -1,0 +1,15 @@
+# Demo: FR-2 Schema Validation
+# This demo shows schema validation - the 'trigger' key is required
+
+# Valid pipeline with trigger key
+trigger:
+  - main
+
+# This structure is required - the pipeline validates that 'trigger' is present
+jobs:
+  - job: ValidateSchema
+    displayName: 'Schema is Valid'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - script: echo "Schema validation passed - trigger key is present"

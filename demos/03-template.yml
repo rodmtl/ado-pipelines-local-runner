@@ -1,0 +1,11 @@
+# Template file for FR-3 Demo
+# This template is referenced by 03-template-reference.yml
+
+jobs:
+  - job: TemplateJob
+    displayName: 'Template Job'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - script: echo "This job is loaded from a template"
+      - script: echo "Template resolution successful!"

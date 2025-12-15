@@ -1,0 +1,28 @@
+# Demo: FR-6 Error Reporting and FR-7 Logging
+# This demonstrates the CLI validate command with various options
+
+trigger:
+  - main
+
+jobs:
+  - job: Test
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - script: echo "Test job"
+
+# Usage examples for FR-6 (Error Reporting):
+# 1. Basic validation with colored output:
+#    azp-local validate --pipeline 05-cli-demo.yml
+#
+# 2. Validation with inline variables:
+#    azp-local validate --pipeline 05-cli-demo.yml --var Config=Debug --var Build=123
+#
+# 3. Validation with strict mode (fails on warnings):
+#    azp-local validate --pipeline 05-cli-demo.yml --strict
+#
+# 4. Validation with output file for FR-7 (Logging):
+#    azp-local validate --pipeline 05-cli-demo.yml --output report.txt
+#
+# 5. Complete example with all options:
+#    azp-local validate -p 05-cli-demo.yml -v variables.yml --var Env=Prod --strict -o report.txt

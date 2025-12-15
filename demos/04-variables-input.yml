@@ -1,0 +1,7 @@
+# Variables file for FR-4 Demo
+# Provide values for the variables used in 04-variables.yml
+# Usage: azp-local validate --pipeline 04-variables.yml --vars 04-variables-input.yml
+
+BuildConfiguration: Release
+BuildVersion: 1.0.0
+Environment: Production
