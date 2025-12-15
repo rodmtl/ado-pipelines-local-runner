@@ -46,7 +46,6 @@ jobs:
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat="opencover,cobertura,json" \
           /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage.xml \
-
           /p:Exclude="[*.Tests]*"
 
     - name: Install ReportGenerator
