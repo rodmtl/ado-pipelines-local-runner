@@ -54,7 +54,14 @@ jobs:
         echo "Looking for coverage files..."
         find . -name "*.opencover.xml" -type f 2>/dev/null | head -5
         echo ""
-        cat ./coverage/coverage.opencover.xml
+        echo "Coverage file size:"
+        ls -lh ./coverage/coverage.opencover.xml
+        echo ""
+        echo "First 50 lines of coverage file:"
+        head -50 ./coverage/coverage.opencover.xml
+        echo ""
+        echo "Checking for Module elements:"
+        grep -c "<Module" ./coverage/coverage.opencover.xml || echo "No Module elements found"
 
     - name: Install ReportGenerator
       run: dotnet tool install -g dotnet-reportgenerator-globaltool
@@ -72,7 +79,6 @@ jobs:
           -reports:"$COVERAGE_FILE" \
           -targetdir:"coverage-report" \
           -reporttypes:"Html;HtmlSummary;Badges;TextSummary;JsonSummary;MarkdownSummary" \
-          -assemblyfilters:"+AdoPipelinesLocalRunner;-AdoPipelinesLocalRunner.Tests" \
           -classfilters:"-System*;-Microsoft*"
 
     - name: Display coverage summary
