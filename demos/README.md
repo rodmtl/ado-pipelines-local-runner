@@ -7,6 +7,7 @@ This directory contains demo files showcasing each functional requirement of the
 **File:** `01-syntax-validation.yml`
 
 Demonstrates a valid Azure Pipelines YAML file with proper syntax including:
+
 - Trigger configuration
 - Pull request validation
 - Variables declaration
@@ -14,6 +15,7 @@ Demonstrates a valid Azure Pipelines YAML file with proper syntax including:
 - Task references
 
 **Test:**
+
 ```bash
 dotnet run --project src/AzpLocal.Cli -- --pipeline demos/01-syntax-validation.yml
 ```
@@ -29,6 +31,7 @@ Expected output: ✓ PASSED - No syntax errors
 Demonstrates schema validation where the `trigger` key is required at the root level.
 
 **Test:**
+
 ```bash
 dotnet run --project src/AzpLocal.Cli -- --pipeline demos/02-schema-validation.yml
 ```
@@ -36,6 +39,7 @@ dotnet run --project src/AzpLocal.Cli -- --pipeline demos/02-schema-validation.y
 Expected output: ✓ PASSED - Schema validation successful
 
 **Test Invalid Schema (intentional):**
+
 ```bash
 # Create a file without 'trigger' key and test it
 echo 'jobs:\n  - job: Test\n    steps:\n      - script: echo Test' > test.yml
@@ -48,13 +52,15 @@ Expected output: ✗ FAILED - Missing required 'trigger' key
 
 ## FR-3: Local Template Resolution
 
-**Files:** 
+**Files:**
+
 - `03-template-reference.yml` - Main pipeline that references a template
 - `03-template.yml` - The template file
 
 Demonstrates loading and validating local template references.
 
 **Test:**
+
 ```bash
 dotnet run --project src/AzpLocal.Cli -- --pipeline demos/03-template-reference.yml
 ```
@@ -66,12 +72,14 @@ Expected output: ✓ PASSED - Template loaded and resolved successfully
 ## FR-4: Variable Processing
 
 **Files:**
+
 - `04-variables.yml` - Pipeline with variable placeholders using `$(varName)` syntax
 - `04-variables-input.yml` - Variable definitions file
 
 Demonstrates variable substitution and processing.
 
 **Test with inline variables:**
+
 ```bash
 dotnet run --project src/AzpLocal.Cli -- \
   --pipeline demos/04-variables.yml \
@@ -81,6 +89,7 @@ dotnet run --project src/AzpLocal.Cli -- \
 ```
 
 **Test with variable file:**
+
 ```bash
 dotnet run --project src/AzpLocal.Cli -- \
   --pipeline demos/04-variables.yml \
@@ -98,11 +107,13 @@ Expected output: ✓ PASSED - Variables substituted successfully
 Demonstrates the command-line interface for the validate command.
 
 **Test 1: Basic validation:**
+
 ```bash
 dotnet run --project src/AzpLocal.Cli -- --pipeline demos/05-cli-demo.yml
 ```
 
 **Test 2: Validation with output file (for FR-7 logging):**
+
 ```bash
 dotnet run --project src/AzpLocal.Cli -- \
   --pipeline demos/05-cli-demo.yml \
@@ -111,6 +122,7 @@ cat report.txt
 ```
 
 **Test 3: Strict mode (fails on warnings):**
+
 ```bash
 dotnet run --project src/AzpLocal.Cli -- \
   --pipeline demos/05-cli-demo.yml \
@@ -122,6 +134,7 @@ dotnet run --project src/AzpLocal.Cli -- \
 ## FR-6: Structured Error Reporting
 
 All tests above demonstrate error reporting with structured output showing:
+
 - Severity level (Critical, Error, Warning, Info)
 - Error code (e.g., YAML001, SCHEMA001)
 - Descriptive message
@@ -137,6 +150,7 @@ The report includes a summary count of issues by severity level.
 Logging is demonstrated through the `--output` option which writes structured validation reports to files.
 
 **Test:**
+
 ```bash
 # Run validation and capture output to file
 dotnet run --project src/AzpLocal.Cli -- \
@@ -148,6 +162,7 @@ cat validation-log.txt
 ```
 
 The output includes:
+
 - Validation status (PASSED/FAILED)
 - Summary of issues by severity
 - Detailed list of all issues with line/column information
@@ -158,6 +173,7 @@ The output includes:
 ## Running All Demos
 
 **Execute all demo validations at once:**
+
 ```bash
 echo "=== FR-1: YAML Syntax ==="
 dotnet run --project src/AzpLocal.Cli -- --pipeline demos/01-syntax-validation.yml

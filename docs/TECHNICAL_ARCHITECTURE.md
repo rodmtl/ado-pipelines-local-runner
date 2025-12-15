@@ -8,7 +8,7 @@
 
 ### 1.1 High-Level Architecture Diagram
 
-```md
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     CLI Entry Point                             │
 │              (Command Parser & Orchestrator)                    │
@@ -203,7 +203,7 @@
 
 ### 3.1 Module Dependency Graph
 
-```md
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Entry Point                            │
 └────────────┬────────────────────────────────────────────────┘
@@ -438,7 +438,7 @@
 
 ### 4.3 Project Structure (Solution Layout)
 
-```md
+```
 AzDevopsLocalRunner/
 ├── src/
 │   ├── AzDevopsLocalRunner.Core/
@@ -521,7 +521,7 @@ AzDevopsLocalRunner/
 
 ### 5.1 Validation Flow
 
-```md
+```
 Input YAML File(s)
         │
         v
@@ -555,7 +555,7 @@ ERROR       ┌────────────────┐
 
 ### 5.2 Template Resolution Flow
 
-```md
+```
 Parsed Pipeline AST
         │
         v
@@ -603,7 +603,7 @@ Parsed Pipeline AST
 
 ### 5.3 Variable Processing Flow
 
-```md
+```
 Pipeline AST + Variable Inputs
         │
         v
@@ -650,7 +650,7 @@ Pipeline AST + Variable Inputs
 
 ### 5.4 Execution Flow
 
-```md
+```
 Substituted Pipeline AST
         │
         v
@@ -751,7 +751,7 @@ Substituted Pipeline AST
 
 ### 5.5 End-to-End Processing Pipeline
 
-```md
+```
 ┌─────────────────┐
 │  User Input     │ (CLI args)
 │  - File path    │
@@ -855,7 +855,7 @@ v                 v
 
 #### 6.2.1 Between Parser and Schema Manager
 
-```md
+```
 ValidationRequest {
   astNode: AstNode,
   schemaVersion: string
@@ -870,7 +870,7 @@ ValidationResult {
 
 #### 6.2.2 Between Template Resolver and File Resolver
 
-```md
+```
 TemplateReference {
   path: string,
   isRemote: boolean,
@@ -886,7 +886,7 @@ ResolvedTemplate {
 
 #### 6.2.3 Between Variable Processor and Substitution Engine
 
-```md
+```
 SubstitutionRequest {
   text: string,
   variableMap: Dictionary<string, string>,
@@ -902,7 +902,7 @@ SubstitutionResult {
 
 #### 6.2.4 Between Execution Engine and Step Executor
 
-```md
+```
 StepExecutionContext {
   stepDefinition: Step,
   environmentVariables: Dictionary<string, string>,
@@ -925,7 +925,7 @@ StepExecutionResult {
 
 ### 7.1 Mock Service Layer Design
 
-```md
+```
 ┌──────────────────────────────────────┐
 │   Mock Service Configuration         │
 │   (config.yml / appsettings.json)    │
@@ -1063,7 +1063,7 @@ Example Config (YAML):
 
 ### 7.3 Mock Service Registry Pattern
 
-```md
+```
 IServiceRegistry (Interface)
   ├── RegisterVariableGroupService(service)
   ├── RegisterServiceConnectionService(service)
@@ -1085,7 +1085,7 @@ MockServiceRegistry (Implementation)
 
 ### 8.1 Plugin/Task Extension Points
 
-```md
+```
 ┌─────────────────────────────────────┐
 │  Custom Task Plugin System          │
 └────────────┬────────────────────────┘
@@ -1188,7 +1188,7 @@ public class InputDefinition
 
 ### 8.3 Built-in Task Registry
 
-```md
+```
 TaskRegistry
 ├── PowerShellTask
 │   └── Executes PowerShell scripts (.ps1)
@@ -1293,7 +1293,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 8.5 Extension Loading Mechanism
 
-```md
+```
 ┌────────────────────────────────┐
 │ Extension Discovery            │
 │ (Scan plugins directory)       │
@@ -1328,7 +1328,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 9.1 Execution Isolation
 
-```md
+```
 ┌─────────────────────────────────┐
 │  Step Execution Context         │
 └────────────┬────────────────────┘
@@ -1360,7 +1360,7 @@ public class CustomDockerBuildTask : ITask
 
 ### 10.1 Error Severity Levels
 
-```md
+```
 Critical: Pipeline cannot proceed
 ├── YAML syntax errors
 ├── Missing required files
@@ -1387,7 +1387,7 @@ Low: Diagnostic information
 
 ### 10.2 Error Reporting Format
 
-```md
+```
 [ERROR] {Component}: {ErrorCode}
         Location: {File}:{Line}:{Column}
         Message: {Clear description}

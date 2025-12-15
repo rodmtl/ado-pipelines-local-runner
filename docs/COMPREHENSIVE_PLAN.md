@@ -41,7 +41,7 @@ This document outlines the comprehensive plan for developing **azp-local** – a
 
 ### System Overview
 
-```md
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         CLI Interface                            │
 │              (validate, expand, exec, lint, diag)                │
@@ -222,7 +222,7 @@ This document outlines the comprehensive plan for developing **azp-local** – a
 
 #### Validation Flow
 
-```md
+```
 Input YAML
     │
     ▼
@@ -256,7 +256,7 @@ SUCCESS → Report valid pipeline
 
 #### Template Resolution Flow
 
-```md
+```
 Template Reference (URL or file)
     │
     ├─ Local file? → Load from disk → Parse
@@ -282,7 +282,7 @@ Template Reference (URL or file)
 
 #### Variable Processing Flow
 
-```md
+```
 Variable Sources (files, inline, mocks)
     │
     ├─ Load from files
@@ -313,7 +313,7 @@ Return expanded pipeline with variable map
 
 #### Execution Flow
 
-```md
+```
 Expanded Pipeline
     │
     ▼
@@ -673,7 +673,7 @@ telemetry:
 
 Human-readable summary with status indicators.
 
-```md
+```
 Azure DevOps Pipeline Validator v1.0
 
 Pipeline: azure-pipelines.yml

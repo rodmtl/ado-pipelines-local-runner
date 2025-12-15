@@ -12,7 +12,7 @@
 
 Phase 1 delivers core validation infrastructure with six primary components:
 
-```md
+```
 ┌──────────────────────────────────────────────────────────────┐
 │                        CLI Handler                            │
 │                    (Entry Point Layer)                        │

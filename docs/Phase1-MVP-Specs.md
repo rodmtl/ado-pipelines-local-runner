@@ -23,7 +23,7 @@ Out of scope (Phase 1): Execution simulation, remote template fetching, complex 
 
 ### 3.1 Component Diagram (Text)
 
-```md
+```
 CLI (validate)
   └─ ValidationOrchestrator
        ├─ YamlParser
@@ -234,7 +234,7 @@ CLI (validate)
 
 ### 9.1 Validation Flow
 
-```md
+```
 CLI → ValidationOrchestrator
   → YamlParser → SyntaxValidator → SchemaManager
   → TemplateResolver (Local) → VariableProcessor (Basic)
@@ -243,7 +243,7 @@ CLI → ValidationOrchestrator
 
 ### 9.2 Template Resolution (Local)
 
-```md
+```
 PipelineDocument
   └─ Find template refs
       └─ Resolve local path (basePath)
@@ -254,7 +254,7 @@ PipelineDocument
 
 ### 9.3 Error Handling
 
-```md
+```
 Component raises issue
   └─ Orchestrator aggregates
       └─ Categorize by type
