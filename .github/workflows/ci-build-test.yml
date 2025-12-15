@@ -1,11 +1,11 @@
 name: CI - Build and Test
 
-# on:
-#   push:
-#     branches: [ main, develop ]
-#   pull_request:
-#     branches: [ main, develop ]
-#   workflow_dispatch:
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
 
 env:
   DOTNET_VERSION: '8.0.x'
@@ -46,11 +46,8 @@ jobs:
           --no-build `
           --verbosity normal `
           /p:CollectCoverage=true `
-          /p:CoverletOutputFormat=opencover `
-          /p:CoverletOutput=./coverage/coverage.opencover.xml `
-          /p:Threshold=${{ env.MIN_COVERAGE }} `
-          /p:ThresholdType=line `
-          /p:ThresholdStat=total
+          /p:CoverletOutputFormat=cobertura `
+          /p:ExcludeByFile=**/bin/**
       shell: pwsh
 
     - name: Upload coverage reports (Ubuntu only)
@@ -58,7 +55,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: 'tests/coverage/coverage.opencover.xml'
+        path: 'tests/coverage.cobertura.xml'
         retention-days: 7
 
   coverage-report:
@@ -89,40 +86,48 @@ jobs:
           --no-build \
           --verbosity minimal \
           /p:CollectCoverage=true \
-          /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=./coverage/coverage.opencover.xml
+          /p:CoverletOutputFormat=cobertura \
+          /p:ExcludeByFile=**/bin/**
 
     - name: Install ReportGenerator
       run: dotnet tool install -g dotnet-reportgenerator-globaltool
 
-    - name: Generate HTML coverage report
+    - name: Generate coverage report
       run: |
         reportgenerator \
-          -reports:"tests/coverage/coverage.opencover.xml" \
+          -reports:"tests/coverage.cobertura.xml" \
           -targetdir:"coverage-report" \
-          -reporttypes:"Html;JsonSummary;Badges" \
-          -assemblyfilters:"+AdoPipelinesLocalRunner*"
+          -reporttypes:"Html;HtmlSummary;Badges;TextSummary;JsonSummary;MarkdownSummary" \
+          -classfilters:"-System*;-Microsoft*"
 
     - name: Parse coverage percentage
       id: coverage
       run: |
         COVERAGE=$(jq -r '.summary.linecoverage' coverage-report/Summary.json)
-        echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
-        echo "Coverage: $COVERAGE%"
+        echo "line=$COVERAGE" >> $GITHUB_OUTPUT
+        echo "Line coverage: $COVERAGE%"
+
+    - name: Display coverage summary
+      run: cat coverage-report/Summary.txt
 
     - name: Check coverage threshold
       run: |
-        COVERAGE=${{ steps.coverage.outputs.percentage }}
+        COVERAGE=${{ steps.coverage.outputs.line }}
         MIN_COVERAGE=${{ env.MIN_COVERAGE }}
         
-        echo "Current coverage: $COVERAGE%"
-        echo "Minimum required: $MIN_COVERAGE%"
+        echo "📊 Coverage Analysis"
+        echo "===================="
+        echo "Line Coverage: $COVERAGE%"
+        echo "Minimum Required: $MIN_COVERAGE%"
+        echo ""
         
         if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
-          echo "❌ Coverage $COVERAGE% is below the minimum threshold of $MIN_COVERAGE%"
+          echo "❌ FAILED: Coverage $COVERAGE% is below minimum threshold of $MIN_COVERAGE%"
+          echo ""
+          echo "Please add more tests to increase coverage."
           exit 1
         else
-          echo "✅ Coverage $COVERAGE% meets the minimum threshold of $MIN_COVERAGE%"
+          echo "✅ PASSED: Coverage $COVERAGE% meets minimum threshold of $MIN_COVERAGE%"
         fi
 
     - name: Upload HTML coverage report
@@ -137,20 +142,22 @@ jobs:
       uses: actions/github-script@v7
       with:
         script: |
-          const fs = require('fs');
-          const coverage = '${{ steps.coverage.outputs.percentage }}';
+          const lineCoverage = '${{ steps.coverage.outputs.line }}';
           const minCoverage = '${{ env.MIN_COVERAGE }}';
-          const status = parseFloat(coverage) >= parseFloat(minCoverage) ? '✅' : '❌';
+          const passed = parseFloat(lineCoverage) >= parseFloat(minCoverage);
           
-          const comment = `## ${status} Code Coverage Report
+          const comment = `## 📊 Code Coverage Report
           
-          | Metric | Value |
-          |--------|-------|
-          | **Line Coverage** | **${coverage}%** |
-          | **Minimum Required** | ${minCoverage}% |
-          | **Status** | ${parseFloat(coverage) >= parseFloat(minCoverage) ? 'PASS ✅' : 'FAIL ❌'} |
+          | Metric | Coverage | Status |
+          |--------|----------|--------|
+          | **Line Coverage** | **${lineCoverage}%** | ${passed ? '✅ PASS' : '❌ FAIL'} |
+          | **Minimum Required** | ${minCoverage}% | 🎯 Target |
           
-          📊 [View detailed HTML report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          ${passed 
+            ? '✅ **Coverage threshold met!** Great job maintaining test coverage.' 
+            : '❌ **Coverage below threshold.** Please add tests to meet the minimum requirement.'}
+          
+          📁 [Download detailed HTML report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           `;
           
           github.rest.issues.createComment({
