@@ -36,6 +36,9 @@ jobs:
     - name: Build solution
       run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
 
+    - name: Create coverage directory
+      run: mkdir -p coverage-results
+
     - name: Run tests with coverage
       run: |
         dotnet test ${{ env.SOLUTION_PATH }} \
@@ -45,7 +48,7 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage \
+          /p:CoverletOutput=coverage-results/coverage \
           /p:Exclude="[*.Tests]*"
 
     - name: Install ReportGenerator
@@ -54,7 +57,7 @@ jobs:
     - name: Generate detailed coverage report
       run: |
         reportgenerator \
-          -reports:"${{ github.workspace }}/tests/coverage/coverage.opencover.xml" \
+          -reports:"coverage-results/coverage.opencover.xml" \
           -targetdir:"coverage-report" \
           -reporttypes:"Html;HtmlSummary;Badges;TextSummary;JsonSummary;MarkdownSummary" \
           -assemblyfilters:"+AdoPipelinesLocalRunner*;-*.Tests*" \
@@ -102,8 +105,7 @@ jobs:
         name: coverage-reports
         path: |
           coverage-report/
-          **/coverage/*.xml
-          **/coverage/*.json
+          coverage-results/
           **/TestResults/*.trx
         retention-days: 30
 
