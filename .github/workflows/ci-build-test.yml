@@ -47,7 +47,7 @@ jobs:
           --verbosity normal `
           /p:CollectCoverage=true `
           /p:CoverletOutputFormat=opencover `
-          /p:CoverletOutput=./coverage/ `
+          /p:CoverletOutput=./coverage/coverage.opencover.xml `
           /p:Threshold=${{ env.MIN_COVERAGE }} `
           /p:ThresholdType=line `
           /p:ThresholdStat=total
@@ -58,7 +58,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: '**/coverage/*.opencover.xml'
+        path: 'tests/coverage/coverage.opencover.xml'
         retention-days: 7
 
   coverage-report:
@@ -90,7 +90,7 @@ jobs:
           --verbosity minimal \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=./coverage/
+          /p:CoverletOutput=./coverage/coverage.opencover.xml
 
     - name: Install ReportGenerator
       run: dotnet tool install -g dotnet-reportgenerator-globaltool
@@ -98,7 +98,7 @@ jobs:
     - name: Generate HTML coverage report
       run: |
         reportgenerator \
-          -reports:"**/coverage/*.opencover.xml" \
+          -reports:"tests/coverage/coverage.opencover.xml" \
           -targetdir:"coverage-report" \
           -reporttypes:"Html;JsonSummary;Badges" \
           -assemblyfilters:"+AdoPipelinesLocalRunner*"
