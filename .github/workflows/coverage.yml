@@ -41,33 +41,32 @@ jobs:
         dotnet test ${{ env.SOLUTION_PATH }} \
           --configuration Release \
           --no-build \
-          --verbosity minimal \
+          --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
-          /p:CollectCoverage=true \
-          /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=./coverage.opencover.xml \
-          /p:Exclude="[*.Tests]*"
+          --collect:"XPlat Code Coverage" \
+          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
 
     - name: Find coverage file
       run: |
-        if [ -f ./coverage.opencover.xml ]; then
-          echo "Coverage file found in current directory"
-          ls -la ./coverage.opencover.xml
-        elif [ -f ./tests/bin/Release/net8.0/coverage.opencover.xml ]; then
-          echo "Coverage file found in tests output"
-          ls -la ./tests/bin/Release/net8.0/coverage.opencover.xml
-        else
-          echo "Searching for all coverage files..."
-          find . -name "*.opencover.xml" -type f 2>/dev/null || echo "No coverage files found"
-        fi
+        echo "Looking for coverage files..."
+        find . -name "*.opencover.xml" -type f 2>/dev/null | head -5
+        echo ""
+        echo "Directory listing:"
+        ls -la tests/TestResults/ 2>/dev/null || echo "TestResults directory not found"
 
     - name: Install ReportGenerator
       run: dotnet tool install -g dotnet-reportgenerator-globaltool
 
     - name: Generate detailed coverage report
       run: |
+        COVERAGE_FILE=$(find tests/TestResults -name "*.opencover.xml" -type f | head -1)
+        if [ -z "$COVERAGE_FILE" ]; then
+          echo "Error: No coverage file found!"
+          exit 1
+        fi
+        echo "Using coverage file: $COVERAGE_FILE"
         reportgenerator \
-          -reports:"./coverage.opencover.xml" \
+          -reports:"$COVERAGE_FILE" \
           -targetdir:"coverage-report" \
           -reporttypes:"Html;HtmlSummary;Badges;TextSummary;JsonSummary;MarkdownSummary" \
           -assemblyfilters:"+AdoPipelinesLocalRunner*;-*.Tests*" \
