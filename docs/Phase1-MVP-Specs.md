@@ -148,6 +148,11 @@ CLI (validate)
 - Supports verbosity: `quiet|minimal|normal|detailed`.
 - Writes to console; optional `--log-file` path.
 
+### FR-8: Pipeline File Existence Validation
+
+- Validates that the `--pipeline` file path exists before processing.
+- Returns a clear error message and fails fast when the file is missing.
+
 ## 6. Non-Functional Requirements
 
 ### NFR-1: Performance
@@ -226,6 +231,12 @@ CLI (validate)
 - Given warnings from schema or variables
 - When running validate with `--strict`
 - Then warnings are escalated to errors and exit code = 1
+
+### AC-9: Missing Pipeline File
+
+- Given a nonexistent pipeline file path
+- When running `azp-local validate --pipeline missing.yml`
+- Then a `PipelineError` with a "Pipeline file not found" message is returned and exit code = 1
 
 ## 8. TDD Strategy
 

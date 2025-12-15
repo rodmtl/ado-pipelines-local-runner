@@ -202,7 +202,7 @@ azp-local validate --pipeline ci-cd.yml --output json --strict
 
 ### Project Structure
 
-```
+```text
 ado-pipelines-local-runner/
 ├── src/                        # Source code
 │   ├── Contracts/              # Interfaces and models
@@ -231,6 +231,7 @@ The project follows **SOLID principles** with a clean architecture:
 - **Infrastructure Layer**: File system, caching, logging
 
 **Key Design Patterns**:
+
 - Strategy Pattern (validators, resolvers)
 - Dependency Injection (all components wired via DI)
 - Builder Pattern (validation result aggregation)
@@ -280,6 +281,7 @@ reportgenerator -reports:"./coverage/coverage.opencover.xml" -targetdir:"./cover
 ## Roadmap
 
 ### Phase 1 (Current - MVP)
+
 - ✅ YAML syntax validation
 - ✅ Schema validation
 - ✅ Local template resolution
@@ -287,6 +289,7 @@ reportgenerator -reports:"./coverage/coverage.opencover.xml" -targetdir:"./cover
 - ✅ Error reporting with multiple formats
 
 ### Phase 2 (Planned)
+
 - 🔲 Remote template fetching (HTTP/Git)
 - 🔲 Advanced variable scoping
 - 🔲 Execution simulation
@@ -298,6 +301,7 @@ reportgenerator -reports:"./coverage/coverage.opencover.xml" -targetdir:"./cover
 ### Common Issues
 
 **Error: File not found**
+
 ```bash
 # Ensure the pipeline file path is correct
 azp-local validate --pipeline azure-pipelines.yml
@@ -307,12 +311,14 @@ azp-local validate --pipeline "C:/projects/myapp/azure-pipelines.yml"
 ```
 
 **Error: Template not found**
+
 ```bash
 # Specify the correct base path for templates
 azp-local validate --pipeline build.yml --base-path ./
 ```
 
 **Error: Undefined variable**
+
 ```bash
 # Define variables using --var or --vars
 azp-local validate --pipeline build.yml --var myVar=value
