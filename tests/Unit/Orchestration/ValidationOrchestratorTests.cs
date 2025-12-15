@@ -242,6 +242,94 @@ public class ValidationOrchestratorTests
         variables.VerifyNoOtherCalls();
     }
 
+    [Fact]
+    public async Task ValidateAsync_ShouldHandleParsingFailure()
+    {
+        var doc = new PipelineDocument { SourcePath = "pipeline.yml" };
+        var parser = new Mock<IYamlParser>();
+        parser.Setup(p => p.ParseFileAsync<PipelineDocument>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParserResult<PipelineDocument>
+            {
+                Success = false,
+                Data = null,
+                Errors = new[] { new ParseError { Code = "YAML_PARSE_ERROR", Message = "Invalid YAML", Severity = Severity.Error } },
+                SourceMap = Mock.Of<ISourceMap>()
+            });
+
+        var syntax = new Mock<ISyntaxValidator>();
+        var schema = new Mock<ISchemaManager>();
+        var templates = new Mock<ITemplateResolver>();
+        var variables = new Mock<IVariableProcessor>();
+        var reporter = new Mock<IErrorReporter>();
+        reporter.Setup(r => r.GenerateReport(It.IsAny<string>(), It.IsAny<IReadOnlyList<ValidationError>>(), It.IsAny<IReadOnlyList<ValidationError>>(), OutputFormatConfig.Text))
+            .Returns(new ReportOutput { Content = "parse error", Format = OutputFormatConfig.Text });
+
+        var logger = new Mock<ILogger<ValidationOrchestrator>>();
+        var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
+
+        var pipelinePath = CreateTempPipelineFile();
+        var response = await orchestrator.ValidateAsync(new ValidateRequest
+        {
+            Path = pipelinePath,
+            BaseDirectory = ".",
+            SchemaVersion = null,
+            VariableFiles = Array.Empty<string>(),
+            FailOnWarnings = false
+        }, CancellationToken.None);
+
+        response.Status.Should().Be(ValidationStatus.Failed);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WithSchemaValidationError_ShouldFail()
+    {
+        var doc = new PipelineDocument { SourcePath = "pipeline.yml" };
+        var parser = new Mock<IYamlParser>();
+        parser.Setup(p => p.ParseFileAsync<PipelineDocument>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParserResult<PipelineDocument>
+            {
+                Success = true,
+                Data = doc,
+                Errors = Array.Empty<ParseError>(),
+                SourceMap = Mock.Of<ISourceMap>()
+            });
+
+        var syntax = new Mock<ISyntaxValidator>();
+        syntax.Setup(s => s.ValidateAsync(It.IsAny<PipelineDocument>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult { IsValid = true, Errors = Array.Empty<ValidationError>(), Warnings = Array.Empty<ValidationError>() });
+
+        var schema = new Mock<ISchemaManager>();
+        schema.Setup(s => s.ValidateAsync(It.IsAny<PipelineDocument>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SchemaValidationResult
+            {
+                IsValid = false,
+                SchemaVersion = "latest",
+                Errors = new[] { new ValidationError { Code = "SCHEMA_INVALID", Message = "Schema validation failed", Severity = Severity.Error } }
+            });
+
+        var templates = new Mock<ITemplateResolver>();
+        var variables = new Mock<IVariableProcessor>();
+        var reporter = new Mock<IErrorReporter>();
+        reporter.Setup(r => r.GenerateReport(It.IsAny<string>(), It.IsAny<IReadOnlyList<ValidationError>>(), It.IsAny<IReadOnlyList<ValidationError>>(), OutputFormatConfig.Text))
+            .Returns(new ReportOutput { Content = "schema error", Format = OutputFormatConfig.Text });
+
+        var logger = new Mock<ILogger<ValidationOrchestrator>>();
+        var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
+
+        var pipelinePath = CreateTempPipelineFile();
+        var response = await orchestrator.ValidateAsync(new ValidateRequest
+        {
+            Path = pipelinePath,
+            BaseDirectory = ".",
+            SchemaVersion = null,
+            VariableFiles = Array.Empty<string>(),
+            FailOnWarnings = false
+        }, CancellationToken.None);
+
+        response.Status.Should().Be(ValidationStatus.Failed);
+        response.Summary.ErrorCount.Should().BeGreaterThan(0);
+    }
+
     private static string CreateTempPipelineFile()
     {
         var path = Path.Combine(Path.GetTempPath(), $"pipeline-{Guid.NewGuid():N}.yml");

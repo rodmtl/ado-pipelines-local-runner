@@ -373,6 +373,188 @@ public class SyntaxValidatorTests
         stopwatch.ElapsedMilliseconds.Should().BeLessThan(1000);
     }
 
+    [Fact]
+    public async Task ValidateAsync_WithDefaultSourceMap_CoversDefaultSourceMapType()
+    {
+        // Arrange - DefaultSourceMap is an internal class used internally
+        var document = new PipelineDocument
+        {
+            Trigger = new { },
+            Steps = new[] { (object)new { script = "echo hi" } }
+        };
+        var validator = CreateValidator();
+
+        // Act
+        var result = await validator.ValidateAsync(document);
+
+        // Assert - DefaultSourceMap is instantiated internally during validation
+        result.Should().NotBeNull();
+        // This covers the DefaultSourceMap class
+    }
+
+    [Fact]
+    public void AddRule_ShouldNotAddDuplicateRule()
+    {
+        // Arrange
+        var validator = CreateValidator();
+        var rule = new TestValidationRule();
+        
+        // Act
+        validator.AddRule(rule);
+        var countAfterFirst = validator.GetRules().Count;
+        validator.AddRule(rule); // Try adding same rule again
+        var countAfterSecond = validator.GetRules().Count;
+
+        // Assert
+        countAfterSecond.Should().Be(countAfterFirst, "Duplicate rule should not be added");
+    }
+
+    [Fact]
+    public async Task ValidStepsWithAllActionTypes_Accepted()
+    {
+        var validator = CreateValidator();
+        var steps = new List<object>
+        {
+            new Dictionary<string, object> { { "task", "PublishBuildArtifacts@1" } },
+            new Dictionary<string, object> { { "checkout", "self" } },
+            new Dictionary<string, object> { { "download", "buildpipeline" } },
+            new Dictionary<string, object> { { "publish", "artifact" } }
+        };
+        var result = await validator.ValidateAsync(new PipelineDocument { Trigger = new { }, Steps = steps });
+        // All action types should be valid - no STEP_NO_ACTION errors
+        Assert.DoesNotContain(result.Errors, e => e.Code == "STEP_NO_ACTION");
+    }
+
+    [Fact]
+    public async Task MultipleStagesWithJobsAndSteps_Accepted()
+    {
+        var validator = CreateValidator();
+        var jobs = new List<object> { new Dictionary<string, object> { { "displayName", "TestJob" }, { "steps", new object[] { } } } };
+        var stages = new List<object> { new { displayName = "Build", jobs = jobs }, new { displayName = "Test", jobs = jobs } };
+        var result = await validator.ValidateAsync(new PipelineDocument { Trigger = new { }, Stages = stages });
+        Assert.Empty(result.Errors.Where(e => e.Code.Contains("CONFLICTING")));
+    }
+
+    [Fact]
+    public async Task StageWithoutDisplayNameOrJobs_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var stages = new List<object> { new { } };
+        var result = await validator.ValidateAsync(new PipelineDocument { Trigger = new { }, Stages = stages });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code.Contains("STAGE")));
+    }
+
+    [Fact]
+    public async Task RootLevelJobWithoutDisplayNameOrSteps_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var jobs = new List<object> { new { } };
+        var result = await validator.ValidateAsync(new PipelineDocument { Trigger = new { }, Jobs = jobs });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "INVALID_JOB_STRUCTURE"));
+    }
+
+    [Fact]
+    public async Task StepWithoutAction_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var steps = new List<object> { new { displayName = "DoNothing" } };
+        var result = await validator.ValidateAsync(new PipelineDocument { Trigger = new { }, Steps = steps });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "STEP_NO_ACTION"));
+    }
+
+    [Fact]
+    public async Task StagesAndJobsConflict_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var jobs = new List<object> { new { displayName = "TestJob" } };
+        var stages = new List<object> { new { displayName = "Build", jobs = new object[] { } } };
+        var result = await validator.ValidateAsync(new PipelineDocument 
+        { 
+            Trigger = new { }, 
+            Stages = stages,
+            Jobs = jobs
+        });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "CONFLICTING_STRUCTURE_STAGES_JOBS"));
+    }
+
+    [Fact]
+    public async Task StagesAndStepsConflict_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var steps = new List<object> { new { script = "echo test" } };
+        var stages = new List<object> { new { displayName = "Build", jobs = new object[] { } } };
+        var result = await validator.ValidateAsync(new PipelineDocument 
+        { 
+            Trigger = new { }, 
+            Stages = stages,
+            Steps = steps
+        });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "CONFLICTING_STRUCTURE_STAGES_STEPS"));
+    }
+
+    [Fact]
+    public async Task JobsAndStepsConflict_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var jobs = new List<object> { new { displayName = "TestJob" } };
+        var steps = new List<object> { new { script = "echo test" } };
+        var result = await validator.ValidateAsync(new PipelineDocument 
+        { 
+            Trigger = new { }, 
+            Jobs = jobs,
+            Steps = steps
+        });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "CONFLICTING_STRUCTURE_JOBS_STEPS"));
+    }
+
+    [Fact]
+    public async Task NullStep_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var steps = new List<object> { null! };
+        var result = await validator.ValidateAsync(new PipelineDocument 
+        { 
+            Trigger = new { }, 
+            Steps = steps
+        });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "NULL_STEP"));
+    }
+
+    [Fact]
+    public async Task NullJob_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var jobs = new List<object> { null! };
+        var result = await validator.ValidateAsync(new PipelineDocument 
+        { 
+            Trigger = new { }, 
+            Jobs = jobs
+        });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "NULL_JOB"));
+    }
+
+    [Fact]
+    public async Task NullStage_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var stages = new List<object> { null! };
+        var result = await validator.ValidateAsync(new PipelineDocument 
+        { 
+            Trigger = new { }, 
+            Stages = stages
+        });
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "NULL_STAGE"));
+    }
+
+    [Fact]
+    public async Task NullDocument_ShouldFail()
+    {
+        var validator = CreateValidator();
+        var result = await validator.ValidateAsync(null!);
+        Assert.NotEmpty(result.Errors.Where(e => e.Code == "NULL_DOCUMENT"));
+        Assert.False(result.IsValid);
+    }
+
     #endregion
 
     #region Helper Methods

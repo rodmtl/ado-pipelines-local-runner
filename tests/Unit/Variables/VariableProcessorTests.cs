@@ -63,6 +63,7 @@ public class VariableProcessorTests
 
         // Assert
         Assert.True(result.Success);
+        Assert.NotNull(result.ProcessedDocument);
         Assert.Contains("12345", result.ProcessedDocument.RawContent!);
         Assert.Empty(result.Errors);
     }
@@ -90,6 +91,7 @@ public class VariableProcessorTests
 
         // Assert
         Assert.True(result.Success);
+        Assert.NotNull(result.ProcessedDocument);
         Assert.Contains("hello", result.ProcessedDocument.RawContent!);
         Assert.Single(result.ResolvedVariables);
         Assert.Equal("hello", result.ResolvedVariables["myVar"].Value);
@@ -117,6 +119,7 @@ public class VariableProcessorTests
         var result = await _processor.ProcessAsync(document, context);
 
         // Assert: current implementation does not replace template syntax
+        Assert.NotNull(result.ProcessedDocument);
         Assert.Contains("${{ variables.buildConfig }}", result.ProcessedDocument.RawContent!);
     }
 
@@ -328,6 +331,7 @@ public class VariableProcessorTests
         var result = await _processor.ProcessAsync(document, context);
 
         // Assert
+        Assert.NotNull(result.ProcessedDocument);
         Assert.Contains("system", result.ProcessedDocument.RawContent!);
     }
 
@@ -363,6 +367,7 @@ jobs:
 
         // Assert
         Assert.True(result.Success);
+        Assert.NotNull(result.ProcessedDocument);
         Assert.Contains("main", result.ProcessedDocument.RawContent!);
         Assert.Contains("Release", result.ProcessedDocument.RawContent!);
         Assert.Contains("MyProject", result.ProcessedDocument.RawContent!);
