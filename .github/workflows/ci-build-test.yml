@@ -1,11 +1,11 @@
 name: CI - Build and Test
 
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:
+# on:
+#   push:
+#     branches: [ main, develop ]
+#   pull_request:
+#     branches: [ main, develop ]
+#   workflow_dispatch:
 
 env:
   DOTNET_VERSION: '8.0.x'
