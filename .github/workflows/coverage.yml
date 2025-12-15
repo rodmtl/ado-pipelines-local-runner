@@ -44,8 +44,8 @@ jobs:
           --verbosity minimal \
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
-          /p:CoverletOutputFormat="opencover,cobertura,json" \
-          /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage.xml \
+          /p:CoverletOutputFormat=opencover \
+          /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage.opencover.xml \
           /p:Exclude="[*.Tests]*"
 
     - name: Install ReportGenerator
