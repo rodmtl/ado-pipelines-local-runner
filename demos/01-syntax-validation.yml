@@ -1,0 +1,53 @@
+# Demo: FR-1 YAML Syntax Validation
+# This demo shows a valid Azure Pipelines YAML with proper syntax
+
+trigger:
+  - main
+  - develop
+
+pr:
+  - main
+
+variables:
+  buildConfiguration: Release
+  buildPlatform: x64
+
+jobs:
+  - job: Build
+    displayName: 'Build and Test'
+    pool:
+      vmImage: 'windows-latest'
+    
+    variables:
+      dotnetVersion: 8.x
+    
+    steps:
+      - task: UseDotNet@2
+        inputs:
+          version: $(dotnetVersion)
+      
+      - task: DotNetCoreCLI@2
+        displayName: 'Restore NuGet Packages'
+        inputs:
+          command: restore
+          projects: 'src/**/*.csproj'
+      
+      - task: DotNetCoreCLI@2
+        displayName: 'Build Solution'
+        inputs:
+          command: build
+          projects: 'src/**/*.csproj'
+          arguments: '--configuration $(buildConfiguration) --no-restore'
+      
+      - task: DotNetCoreCLI@2
+        displayName: 'Run Unit Tests'
+        inputs:
+          command: test
+          projects: 'tests/**/*.csproj'
+          arguments: '--no-build --logger trx'
+      
+      - task: PublishTestResults@2
+        condition: always()
+        inputs:
+          testResultsFormat: VSTest
+          testResultsFiles: '**/*.trx'

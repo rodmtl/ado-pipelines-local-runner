@@ -1,0 +1,6 @@
+trigger:
+  - main
+
+# This references a local template file (03-template.yml)
+jobs:
+  - template: ./demos/03-template.yml

@@ -1,0 +1,221 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  SOLUTION_PATH: 'AdoPipelinesLocalRunner.sln'
+  MIN_COVERAGE: 80
+
+jobs:
+  build-and-test:
+    name: Build and Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Display .NET version
+      run: dotnet --version
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build solution
+      run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+    - name: Run tests with coverage
+      run: |
+        dotnet test ${{ env.SOLUTION_PATH }} `
+          --configuration Release `
+          --no-build `
+          --verbosity normal `
+          /p:CollectCoverage=true `
+          /p:CoverletOutputFormat=opencover `
+          /p:CoverletOutput=./coverage/ `
+          /p:Threshold=${{ env.MIN_COVERAGE }} `
+          /p:ThresholdType=line `
+          /p:ThresholdStat=total
+      shell: pwsh
+
+    - name: Upload coverage reports (Ubuntu only)
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: '**/coverage/*.opencover.xml'
+        retention-days: 7
+
+  coverage-report:
+    name: Generate Coverage Report
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build solution
+      run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+    - name: Run tests with coverage
+      run: |
+        dotnet test ${{ env.SOLUTION_PATH }} \
+          --configuration Release \
+          --no-build \
+          --verbosity minimal \
+          /p:CollectCoverage=true \
+          /p:CoverletOutputFormat=opencover \
+          /p:CoverletOutput=./coverage/
+
+    - name: Install ReportGenerator
+      run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
+    - name: Generate HTML coverage report
+      run: |
+        reportgenerator \
+          -reports:"**/coverage/*.opencover.xml" \
+          -targetdir:"coverage-report" \
+          -reporttypes:"Html;JsonSummary;Badges" \
+          -assemblyfilters:"+AdoPipelinesLocalRunner*"
+
+    - name: Parse coverage percentage
+      id: coverage
+      run: |
+        COVERAGE=$(jq -r '.summary.linecoverage' coverage-report/Summary.json)
+        echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+        echo "Coverage: $COVERAGE%"
+
+    - name: Check coverage threshold
+      run: |
+        COVERAGE=${{ steps.coverage.outputs.percentage }}
+        MIN_COVERAGE=${{ env.MIN_COVERAGE }}
+        
+        echo "Current coverage: $COVERAGE%"
+        echo "Minimum required: $MIN_COVERAGE%"
+        
+        if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+          echo "❌ Coverage $COVERAGE% is below the minimum threshold of $MIN_COVERAGE%"
+          exit 1
+        else
+          echo "✅ Coverage $COVERAGE% meets the minimum threshold of $MIN_COVERAGE%"
+        fi
+
+    - name: Upload HTML coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html-report
+        path: coverage-report/
+        retention-days: 30
+
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const coverage = '${{ steps.coverage.outputs.percentage }}';
+          const minCoverage = '${{ env.MIN_COVERAGE }}';
+          const status = parseFloat(coverage) >= parseFloat(minCoverage) ? '✅' : '❌';
+          
+          const comment = `## ${status} Code Coverage Report
+          
+          | Metric | Value |
+          |--------|-------|
+          | **Line Coverage** | **${coverage}%** |
+          | **Minimum Required** | ${minCoverage}% |
+          | **Status** | ${parseFloat(coverage) >= parseFloat(minCoverage) ? 'PASS ✅' : 'FAIL ❌'} |
+          
+          📊 [View detailed HTML report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  publish:
+    name: Publish Artifacts
+    needs: [build-and-test, coverage-report]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Publish Windows x64
+      run: |
+        dotnet publish src/AdoPipelinesLocalRunner.csproj \
+          -c Release \
+          -r win-x64 \
+          --self-contained \
+          -o ./publish/win-x64
+
+    - name: Publish Linux x64
+      run: |
+        dotnet publish src/AdoPipelinesLocalRunner.csproj \
+          -c Release \
+          -r linux-x64 \
+          --self-contained \
+          -o ./publish/linux-x64
+
+    - name: Publish macOS x64
+      run: |
+        dotnet publish src/AdoPipelinesLocalRunner.csproj \
+          -c Release \
+          -r osx-x64 \
+          --self-contained \
+          -o ./publish/osx-x64
+
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: azp-local-win-x64
+        path: ./publish/win-x64/
+        retention-days: 90
+
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: azp-local-linux-x64
+        path: ./publish/linux-x64/
+        retention-days: 90
+
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: azp-local-osx-x64
+        path: ./publish/osx-x64/
+        retention-days: 90

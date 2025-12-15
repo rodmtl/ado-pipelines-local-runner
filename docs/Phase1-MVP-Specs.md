@@ -5,7 +5,12 @@ Date: 2025-12-12
 
 ## 1. Overview
 
-Phase 1 delivers the core validation capabilities for Azure DevOps YAML pipelines locally via a CLI `validate` command. It includes YAML parsing, syntax validation, schema validation (with local caching), local template resolution (files only), simple variable processing, structured error reporting, and basic logging. The design applies SOLID and favors TDD for high testability.
+Phase 1 delivers the core validation capabilities for Azure DevOps YAML
+pipelines locally via a CLI `validate` command. It includes YAML parsing,
+syntax validation, schema validation (with local caching), local template
+resolution (files only), simple variable processing, structured error
+reporting, and basic logging. The design applies SOLID and favors TDD
+for high testability.
 
 ## 2. Scope (Phase 1)
 
@@ -17,13 +22,14 @@ Phase 1 delivers the core validation capabilities for Azure DevOps YAML pipeline
 - Structured error reporting and logging
 - Configuration file support (`azp-local.config.yaml` minimal subset)
 
-Out of scope (Phase 1): Execution simulation, remote template fetching, complex variable scoping, linting, diagnostics bundles.
+Out of scope (Phase 1): Execution simulation, remote template fetching,
+complex variable scoping, linting, diagnostics bundles.
 
 ## 3. Architecture (High-Level)
 
 ### 3.1 Component Diagram (Text)
 
-```md
+```text
 CLI (validate)
   └─ ValidationOrchestrator
        ├─ YamlParser
@@ -43,11 +49,16 @@ CLI (validate)
 
 ### 3.3 Design Principles (SOLID)
 
-- Single Responsibility: Each component handles one concern (parse, validate, resolve, process, report).
-- Open/Closed: Validators/resolvers extend via interfaces; core orchestrator relies on abstractions.
-- Liskov Substitution: Alternative implementations (e.g., different parsers) can be substituted transparently.
-- Interface Segregation: Fine-grained interfaces (e.g., `IYamlParser`, `ISyntaxValidator`) for precise contracts.
-- Dependency Inversion: Orchestrator depends on abstractions; DI container wires concrete implementations.
+- Single Responsibility: Each component handles one concern
+  (parse, validate, resolve, process, report).
+- Open/Closed: Validators/resolvers extend via interfaces;
+  core orchestrator relies on abstractions.
+- Liskov Substitution: Alternative implementations (e.g., different parsers)
+  can be substituted transparently.
+- Interface Segregation: Fine-grained interfaces (e.g., `IYamlParser`,
+  `ISyntaxValidator`) for precise contracts.
+- Dependency Inversion: Orchestrator depends on abstractions;
+  DI container wires concrete implementations.
 
 ### 3.4 Key Patterns
 
@@ -63,16 +74,22 @@ CLI (validate)
 - `IYamlParser`
   - `Task<PipelineDocument> ParseAsync(Stream content, CancellationToken ct)`
 - `ISyntaxValidator`
-  - `Task<IReadOnlyList<ValidationIssue>> ValidateSyntaxAsync(PipelineDocument doc, CancellationToken ct)`
+  - `Task<IReadOnlyList<ValidationIssue>> ValidateSyntaxAsync(
+    PipelineDocument doc, CancellationToken ct)`
 - `ISchemaManager`
-  - `Task<PipelineSchema> GetSchemaAsync(string? version, CancellationToken ct)`
-  - `Task<IReadOnlyList<ValidationIssue>> ValidateSchemaAsync(PipelineDocument doc, PipelineSchema schema, CancellationToken ct)`
+  - `Task<PipelineSchema> GetSchemaAsync(string? version,
+    CancellationToken ct)`
+  - `Task<IReadOnlyList<ValidationIssue>> ValidateSchemaAsync(
+    PipelineDocument doc, PipelineSchema schema, CancellationToken ct)`
 - `ITemplateResolver`
-  - `Task<PipelineDocument> ResolveAsync(PipelineDocument doc, string basePath, CancellationToken ct)`
+  - `Task<PipelineDocument> ResolveAsync(PipelineDocument doc,
+    string basePath, CancellationToken ct)`
 - `IVariableProcessor`
-  - `Task<PipelineDocument> ApplyAsync(PipelineDocument doc, VariablesInput variables, CancellationToken ct)`
+  - `Task<PipelineDocument> ApplyAsync(PipelineDocument doc,
+    VariablesInput variables, CancellationToken ct)`
 - `IErrorReporter`
-  - `ValidationReport BuildReport(ValidationContext ctx, IEnumerable<ValidationIssue> issues)`
+  - `ValidationReport BuildReport(ValidationContext ctx,
+    IEnumerable<ValidationIssue> issues)`
 - `ILogger`
   - `void Log(LogLevel level, string message, object? data = null)`
 
@@ -87,7 +104,9 @@ CLI (validate)
 
 ### 4.3 Error Types
 
-- `ParseException`, `SchemaValidationException`, `TemplateResolutionException`, `VariableProcessingException`, `ConfigurationException`
+- `ParseException`, `SchemaValidationException`,
+  `TemplateResolutionException`, `VariableProcessingException`,
+  `ConfigurationException`
 
 ## 5. Functional Requirements
 
@@ -115,7 +134,8 @@ CLI (validate)
 
 ### FR-5: CLI `validate` Command
 
-- Accepts `--pipeline`, `--vars`, `--var key=value`, `--schema-version`, `--base-path`, `--output` (`text|json|sarif`), `--strict`.
+- Accepts `--pipeline`, `--vars`, `--var key=value`, `--schema-version`,
+  `--base-path`, `--output` (`text|json|sarif`), `--strict`.
 - Returns exit codes: 0 success, 1 validation errors, 3 config errors.
 
 ### FR-6: Structured Error Reporting
@@ -127,6 +147,11 @@ CLI (validate)
 
 - Supports verbosity: `quiet|minimal|normal|detailed`.
 - Writes to console; optional `--log-file` path.
+
+### FR-8: Pipeline File Existence Validation
+
+- Validates that the `--pipeline` file path exists before processing.
+- Returns a clear error message and fails fast when the file is missing.
 
 ## 6. Non-Functional Requirements
 
@@ -191,19 +216,27 @@ CLI (validate)
 
 - Given `$(missingVar)` in YAML without definition
 - When running validate
-- Then a `VariableError` is reported; with `--allow-unresolved`, status is `warn` not `error`
+- Then a `VariableError` is reported; with `--allow-unresolved`,
+  status is `warn` not `error`
 
 ### AC-7: CLI Output Formats
 
 - Given `--output json`
 - When running validate
-- Then a JSON report with `issues[]`, `summary`, and `timings` is produced
+- Then a JSON report with `issues[]`, `summary`, and `timings`
+  is produced
 
 ### AC-8: Strict Mode
 
 - Given warnings from schema or variables
 - When running validate with `--strict`
 - Then warnings are escalated to errors and exit code = 1
+
+### AC-9: Missing Pipeline File
+
+- Given a nonexistent pipeline file path
+- When running `azp-local validate --pipeline missing.yml`
+- Then a `PipelineError` with a "Pipeline file not found" message is returned and exit code = 1
 
 ## 8. TDD Strategy
 
@@ -234,7 +267,7 @@ CLI (validate)
 
 ### 9.1 Validation Flow
 
-```md
+```text
 CLI → ValidationOrchestrator
   → YamlParser → SyntaxValidator → SchemaManager
   → TemplateResolver (Local) → VariableProcessor (Basic)
@@ -243,7 +276,7 @@ CLI → ValidationOrchestrator
 
 ### 9.2 Template Resolution (Local)
 
-```md
+```text
 PipelineDocument
   └─ Find template refs
       └─ Resolve local path (basePath)
@@ -254,7 +287,7 @@ PipelineDocument
 
 ### 9.3 Error Handling
 
-```md
+```text
 Component raises issue
   └─ Orchestrator aggregates
       └─ Categorize by type

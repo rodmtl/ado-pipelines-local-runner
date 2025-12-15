@@ -1,6 +1,8 @@
 # Azure DevOps YAML Pipeline Local Validator & Debugger - Comprehensive Plan
 
-**Document Version:** 1.0  
+<!-- markdownlint-disable MD013 MD024 MD029 MD032 MD033 MD034 MD040 MD060 -->
+
+**Document Version:** 1.0
 **Created:** December 12, 2025  
 **Status:** Approved for Implementation  
 
@@ -41,7 +43,7 @@ This document outlines the comprehensive plan for developing **azp-local** – a
 
 ### System Overview
 
-```md
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         CLI Interface                            │
 │              (validate, expand, exec, lint, diag)                │
@@ -222,7 +224,7 @@ This document outlines the comprehensive plan for developing **azp-local** – a
 
 #### Validation Flow
 
-```md
+```
 Input YAML
     │
     ▼
@@ -256,7 +258,7 @@ SUCCESS → Report valid pipeline
 
 #### Template Resolution Flow
 
-```md
+```
 Template Reference (URL or file)
     │
     ├─ Local file? → Load from disk → Parse
@@ -282,7 +284,7 @@ Template Reference (URL or file)
 
 #### Variable Processing Flow
 
-```md
+```
 Variable Sources (files, inline, mocks)
     │
     ├─ Load from files
@@ -313,7 +315,7 @@ Return expanded pipeline with variable map
 
 #### Execution Flow
 
-```md
+```
 Expanded Pipeline
     │
     ▼
@@ -673,7 +675,7 @@ telemetry:
 
 Human-readable summary with status indicators.
 
-```md
+```
 Azure DevOps Pipeline Validator v1.0
 
 Pipeline: azure-pipelines.yml

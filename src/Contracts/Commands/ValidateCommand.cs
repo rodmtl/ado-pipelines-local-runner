@@ -61,6 +61,16 @@ public record ValidateRequest
     public bool FailOnWarnings { get; init; } = false;
 
     /// <summary>
+    /// Whether unresolved variables are allowed (downgrade to warnings).
+    /// </summary>
+    public bool AllowUnresolvedVariables { get; init; } = false;
+
+    /// <summary>
+    /// Inline variables provided via CLI.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? InlineVariables { get; init; }
+
+    /// <summary>
     /// Maximum validation depth for templates.
     /// </summary>
     public int MaxTemplateDepth { get; init; } = 10;

@@ -1,0 +1,18 @@
+trigger:
+  - main
+
+variables:
+  buildConfig: $(BuildConfiguration)
+  buildVersion: $(BuildVersion)
+
+jobs:
+  - job: Build
+    displayName: 'Build - $(buildConfig)'
+    pool:
+      vmImage: 'ubuntu-latest'
+    variables:
+      environment: $(Environment)
+    steps:
+      - script: echo "Building with configuration: $(buildConfig)"
+      - script: echo "Version: $(buildVersion)"
+      - script: echo "Environment: $(environment)"
