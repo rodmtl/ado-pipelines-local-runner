@@ -45,7 +45,8 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat="opencover,cobertura,json" \
-          /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage. \
+          /p:CoverletOutput=${{ github.workspace }}/tests/coverage/coverage.xml \
+
           /p:Exclude="[*.Tests]*"
 
     - name: Install ReportGenerator
@@ -112,11 +113,11 @@ jobs:
       if: github.ref == 'refs/heads/main'
       with:
         auth: ${{ secrets.GIST_SECRET }}
-        gistID: YOUR_GIST_ID_HERE
+        gistID: YOUR_ACTUAL_GIST_ID
         filename: coverage-badge.json
         label: Coverage
         message: ${{ steps.coverage.outputs.line }}%
-        color: ${{ steps.coverage.outputs.line >= 80 && 'brightgreen' || steps.coverage.outputs.line >= 60 && 'yellow' || 'red' }}
+        color: ${{ steps.coverage.outputs.line >= 80 ? 'brightgreen' : (steps.coverage.outputs.line >= 60 ? 'yellow' : 'red') }}
 
     - name: Comment coverage on PR
       if: github.event_name == 'pull_request'
