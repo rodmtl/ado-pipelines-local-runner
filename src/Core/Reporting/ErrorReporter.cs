@@ -13,11 +13,12 @@ public class ErrorReporter : IErrorReporter
         IReadOnlyList<ValidationError> warnings,
         OutputFormat format)
     {
+        var categories = AggregateCategories(errors, warnings);
         return format switch
         {
             OutputFormat.Json => new ReportOutput
             {
-                Content = BuildJson(sourcePath, errors, warnings),
+                Content = BuildJson(sourcePath, errors, warnings, categories),
                 Format = OutputFormat.Json,
                 FileNameSuggestion = MakeSuggestion(sourcePath, "json")
             },
@@ -29,13 +30,13 @@ public class ErrorReporter : IErrorReporter
             },
             OutputFormat.Markdown => new ReportOutput
             {
-                Content = BuildMarkdown(sourcePath, errors, warnings),
+                Content = BuildMarkdown(sourcePath, errors, warnings, categories),
                 Format = OutputFormat.Markdown,
                 FileNameSuggestion = MakeSuggestion(sourcePath, "md")
             },
             _ => new ReportOutput
             {
-                Content = BuildText(sourcePath, errors, warnings),
+                Content = BuildText(sourcePath, errors, warnings, categories),
                 Format = OutputFormat.Text,
                 FileNameSuggestion = MakeSuggestion(sourcePath, "txt")
             }
@@ -50,11 +51,19 @@ public class ErrorReporter : IErrorReporter
         return $"{baseName}-report.{ext}";
     }
 
-    private static string BuildText(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings)
+    private static string BuildText(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings, Dictionary<string, (int errors, int warnings)> categories)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"Source: {sourcePath ?? "<unknown>"}");
         sb.AppendLine($"Errors: {errors.Count}, Warnings: {warnings.Count}");
+        if (categories.Count > 0)
+        {
+            sb.AppendLine("By Category:");
+            foreach (var kvp in categories)
+            {
+                sb.AppendLine($"- {kvp.Key}: errors={kvp.Value.errors}, warnings={kvp.Value.warnings}");
+            }
+        }
         if (errors.Count > 0)
         {
             sb.AppendLine("Errors:");
@@ -74,12 +83,20 @@ public class ErrorReporter : IErrorReporter
         return sb.ToString();
     }
 
-    private static string BuildMarkdown(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings)
+    private static string BuildMarkdown(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings, Dictionary<string, (int errors, int warnings)> categories)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"# Rapport de validation\n");
         sb.AppendLine($"**Source**: {sourcePath ?? "<inconnu>"}");
         sb.AppendLine($"**Erreurs**: {errors.Count} • **Avertissements**: {warnings.Count}\n");
+        if (categories.Count > 0)
+        {
+            sb.AppendLine("## Par catégorie");
+            foreach (var kvp in categories)
+            {
+                sb.AppendLine($"- **{kvp.Key}**: erreurs={kvp.Value.errors}, avertissements={kvp.Value.warnings}");
+            }
+        }
         if (errors.Count > 0)
         {
             sb.AppendLine("## Erreurs");
@@ -101,12 +118,12 @@ public class ErrorReporter : IErrorReporter
         return sb.ToString();
     }
 
-    private static string BuildJson(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings)
+    private static string BuildJson(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings, Dictionary<string, (int errors, int warnings)> categories)
     {
         var payload = new
         {
             source = sourcePath,
-            summary = new { errors = errors.Count, warnings = warnings.Count },
+            summary = new { errors = errors.Count, warnings = warnings.Count, categories = categories },
             errors,
             warnings
         };
@@ -164,5 +181,37 @@ public class ErrorReporter : IErrorReporter
             ["runs"] = runs
         };
         return JsonSerializer.Serialize(sarif, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static Dictionary<string, (int errors, int warnings)> AggregateCategories(IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings)
+    {
+        var dict = new Dictionary<string, (int errors, int warnings)>(StringComparer.OrdinalIgnoreCase);
+        void Add(string category, bool isError)
+        {
+            var current = dict.TryGetValue(category, out var v) ? v : (0, 0);
+            current = isError ? (current.Item1 + 1, current.Item2) : (current.Item1, current.Item2 + 1);
+            dict[category] = current;
+        }
+
+        foreach (var e in errors)
+        {
+            Add(DeduceCategory(e.Code), true);
+        }
+        foreach (var w in warnings)
+        {
+            Add(DeduceCategory(w.Code), false);
+        }
+        return dict;
+    }
+
+    private static string DeduceCategory(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return "Unknown";
+        code = code.ToUpperInvariant();
+        if (code.StartsWith("SYNTAX")) return "Syntax";
+        if (code.StartsWith("SCHEMA")) return "Schema";
+        if (code.StartsWith("TEMPLATE")) return "Template";
+        if (code.StartsWith("VARIABLE")) return "Variable";
+        return "General";
     }
 }
