@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ado-pipelines-local-runner", "ado-pipelines-local-runner", "{9D19BA71-7ECD-46BB-A7D5-0162C5498570}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdoPipelinesLocalRunner", "src\AdoPipelinesLocalRunner.csproj", "{BEB6D3FE-4E66-4D20-A66D-63596FB728B7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdoPipelinesLocalRunner.Tests", "tests\AdoPipelinesLocalRunner.Tests.csproj", "{91416EF2-4B70-418F-BDE6-DCD63C99A900}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BEB6D3FE-4E66-4D20-A66D-63596FB728B7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BEB6D3FE-4E66-4D20-A66D-63596FB728B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BEB6D3FE-4E66-4D20-A66D-63596FB728B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BEB6D3FE-4E66-4D20-A66D-63596FB728B7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91416EF2-4B70-418F-BDE6-DCD63C99A900}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91416EF2-4B70-418F-BDE6-DCD63C99A900}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91416EF2-4B70-418F-BDE6-DCD63C99A900}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91416EF2-4B70-418F-BDE6-DCD63C99A900}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{BEB6D3FE-4E66-4D20-A66D-63596FB728B7} = {9D19BA71-7ECD-46BB-A7D5-0162C5498570}
+		{91416EF2-4B70-418F-BDE6-DCD63C99A900} = {9D19BA71-7ECD-46BB-A7D5-0162C5498570}
+	EndGlobalSection
+EndGlobal
