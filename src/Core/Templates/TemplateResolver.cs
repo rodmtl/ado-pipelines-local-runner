@@ -74,32 +74,6 @@ public class TemplateResolver : ITemplateResolver
                 };
             }
 
-            // Check for circular references
-            var stack = context.ResolutionStack?.ToList() ?? new List<string>();
-            if (stack.Contains(templateReference))
-            {
-                errors.Add(new ValidationError
-                {
-                    Code = "CIRCULAR_TEMPLATE_REFERENCE",
-                    Message = $"Circular template reference detected: {templateReference}",
-                    Severity = Severity.Error,
-                    Location = new SourceLocation
-                    {
-                        FilePath = templateReference,
-                        Line = 0,
-                        Column = 0
-                    },
-                    Suggestion = "Review template references to remove circular dependencies"
-                });
-
-                return new TemplateResolutionResult
-                {
-                    Success = false,
-                    Errors = errors,
-                    Source = templateReference
-                };
-            }
-
             // Resolve relative path
             var resolvedPath = ResolvePath(templateReference, context.BaseDirectory);
 

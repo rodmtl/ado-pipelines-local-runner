@@ -436,14 +436,16 @@ internal class JobStructureRule : IValidationRule
 
             bool hasDisplayName = ValidationHelpers.HasProperty(job, "displayName");
             bool hasSteps = ValidationHelpers.HasProperty(job, "steps");
+            bool hasTemplate = ValidationHelpers.HasProperty(job, "template");
 
             // Jobs require at least displayName or steps
-            if (!hasDisplayName && !hasSteps)
+            // Allow job entries that reference a template (e.g., `- template: path.yml`)
+            if (!hasDisplayName && !hasSteps && !hasTemplate)
             {
                 issues.Add(new ValidationError
                 {
                     Code = "INVALID_JOB_STRUCTURE",
-                    Message = "Job must have at least a displayName or steps defined",
+                    Message = "Job must have at least a displayName, steps, or a template reference defined",
                     Severity = Severity.Error,
                     Location = new SourceLocation
                     {
@@ -451,7 +453,7 @@ internal class JobStructureRule : IValidationRule
                         Line = lineNumber,
                         Column = 1
                     },
-                    Suggestion = "Add 'displayName' or 'steps' to the job definition"
+                    Suggestion = "Add 'displayName', 'steps', or a 'template' reference to the job definition"
                 });
             }
 

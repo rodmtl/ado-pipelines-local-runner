@@ -103,6 +103,10 @@ public class ValidationOrchestrator : IValidationOrchestrator
         var warningList = new List<ValidationError>();
         PipelineDocument? doc = null;
         long parsingMs = 0, syntaxMs = 0, schemaMs = 0, tmplMs = 0, varMs = 0;
+        ValidationResult? syntaxResult = null;
+        SchemaValidationResult? schemaResult = null;
+        TemplateExpansionResult? templateResult = null;
+        VariableProcessingResult? variableResult = null;
 
         if (!File.Exists(request.Path))
         {
@@ -218,7 +222,7 @@ public class ValidationOrchestrator : IValidationOrchestrator
 
             _logger.LogInformation("Running syntax validation");
             var syntaxStart = DateTimeOffset.UtcNow;
-            var syntaxResult = await _syntaxValidator.ValidateAsync(doc, ct);
+            syntaxResult = await _syntaxValidator.ValidateAsync(doc, ct);
             syntaxMs = (long)(DateTimeOffset.UtcNow - syntaxStart).TotalMilliseconds;
             errorList.AddRange(syntaxResult.Errors);
             warningList.AddRange(syntaxResult.Warnings);
@@ -227,7 +231,7 @@ public class ValidationOrchestrator : IValidationOrchestrator
             {
                 _logger.LogInformation("Loading schema");
                 var schemaStart = DateTimeOffset.UtcNow;
-                var schemaResult = await _schemaManager.ValidateAsync(doc, request.SchemaVersion, ct);
+                schemaResult = await _schemaManager.ValidateAsync(doc, request.SchemaVersion, ct);
                 schemaMs = (long)(DateTimeOffset.UtcNow - schemaStart).TotalMilliseconds;
                 foreach (var si in schemaResult.Errors)
                 {
@@ -247,6 +251,7 @@ public class ValidationOrchestrator : IValidationOrchestrator
                 tmplMs = (long)(DateTimeOffset.UtcNow - tmplStart).TotalMilliseconds;
                 doc = texp.ExpandedDocument ?? doc;
                 errorList.AddRange(texp.Errors);
+                templateResult = texp;
             }
 
             if (request.ValidateVariables)
@@ -268,6 +273,7 @@ public class ValidationOrchestrator : IValidationOrchestrator
                 varMs = (long)(DateTimeOffset.UtcNow - varStart).TotalMilliseconds;
                 doc = vresult.ProcessedDocument ?? doc;
                 errorList.AddRange(vresult.Errors);
+                variableResult = vresult;
             }
         }
         catch (Exception ex)
@@ -315,15 +321,15 @@ public class ValidationOrchestrator : IValidationOrchestrator
                 ErrorCount = errorList.Count,
                 WarningCount = warningList.Count,
                 InfoCount = 0,
-                TemplatesResolved = metrics.TemplateResolutionTimeMs > 0 ? 1 : 0,
-                VariablesResolved = metrics.VariableProcessingTimeMs > 0 ? 1 : 0
+                TemplatesResolved = templateResult?.Success == true ? 1 : 0,
+                VariablesResolved = variableResult?.Success == true ? 1 : 0
             },
             Details = new ValidationDetails
             {
-                SyntaxValidation = null,
-                SchemaValidation = null,
-                TemplateResolution = null,
-                VariableProcessing = null,
+                SyntaxValidation = syntaxResult,
+                SchemaValidation = schemaResult,
+                TemplateResolution = templateResult,
+                VariableProcessing = variableResult,
                 AllErrors = errorList,
                 AllWarnings = warningList
             },
