@@ -1,5 +1,11 @@
 # ADO Pipelines Local Runner
 
+[![CI - Build and Test](https://github.com/rodmtl/ado-pipelines-local-runner/actions/workflows/ci-build-test.yml/badge.svg)](https://github.com/rodmtl/ado-pipelines-local-runner/actions/workflows/ci-build-test.yml)
+[![Code Coverage](https://github.com/rodmtl/ado-pipelines-local-runner/actions/workflows/coverage.yml/badge.svg)](https://github.com/rodmtl/ado-pipelines-local-runner/actions/workflows/coverage.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/rodmtl/1c398fffaec63391fb3f602849382e7b/raw/coverage-badge.json)](https://github.com/rodmtl/ado-pipelines-local-runner/actions/workflows/coverage.yml)
+[![.NET Version](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 A command-line tool for validating Azure DevOps YAML pipelines locally, enabling fast feedback without pushing to the cloud.
 
 ## Features
@@ -331,12 +337,26 @@ azp-local validate --pipeline build.yml --allow-unresolved
 
 See [LICENSE](LICENSE) file for details.
 
+## Badge Setup
+
+The project uses GitHub Actions to generate coverage and test badges. To set up the dynamic badges (coverage percentage and test counts):
+
+1. See the detailed setup guide: [Badge Setup Documentation](.github/BADGE_SETUP.md)
+2. You'll need to:
+   - Create a GitHub Personal Access Token with `gist` scope
+   - Create a public gist to store badge data
+   - Add `GIST_SECRET` and `GIST_ID` to repository secrets
+   - Update the badge URLs in this README with your username and gist ID
+
+The static badges (build status, .NET version, license) work immediately without setup.
+
 ## Related Documentation
 
 - [Phase 1 MVP Specifications](docs/Phase1-MVP-Specs.md)
 - [Architecture Documentation](docs/ARCHITECTURE.md)
 - [Functional Requirements Verification](../FUNCTIONAL_REQUIREMENTS_VERIFICATION.md)
 - [Acceptance Criteria Validation](../ACCEPTANCE_CRITERIA_VALIDATION.md)
+- [Badge Setup Guide](.github/BADGE_SETUP.md)
 
 ## Support
 

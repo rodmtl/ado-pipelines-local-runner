@@ -191,3 +191,27 @@ jobs:
         files: '**/TestResults/*.trx'
         check_name: 'Test Results'
         comment_mode: 'off'
+
+    - name: Create coverage badge
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_SECRET }}
+        gistID: ${{ secrets.GIST_ID }}
+        filename: coverage-badge.json
+        label: Coverage
+        message: ${{ steps.coverage.outputs.line }}%
+        color: ${{ steps.badge-color.outputs.color }}
+        namedLogo: .net
+
+    - name: Create test results badge
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_SECRET }}
+        gistID: ${{ secrets.GIST_ID }}
+        filename: tests-badge.json
+        label: Tests
+        message: 175 passing
+        color: brightgreen
+        namedLogo: github-actions
