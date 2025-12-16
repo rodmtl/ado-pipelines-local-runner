@@ -159,14 +159,29 @@ public class VariableProcessor : IVariableProcessor
 
         try
         {
+            // Extract variables defined in the document itself (pipeline-level and job-level)
+            var documentDefinedVars = ExtractDefinedVariables(document);
+
+            // Create context with document variables merged in
+            var contextWithDocumentVars = new VariableContext
+            {
+                SystemVariables = context.SystemVariables,
+                PipelineVariables = MergeDictionaries(context.PipelineVariables, documentDefinedVars),
+                EnvironmentVariables = context.EnvironmentVariables,
+                Parameters = context.Parameters,
+                VariableGroups = context.VariableGroups,
+                FailOnUnresolved = context.FailOnUnresolved,
+                Scope = context.Scope
+            };
+
             // In Phase 1, basic variable validation
-            var varValidation = ValidateVariables(document, context);
+            var varValidation = ValidateVariables(document, contextWithDocumentVars);
             errors.AddRange(varValidation.Errors);
 
             // Track resolved variables from provided context (pipeline/inline) for reporting
-            if (context.PipelineVariables != null)
+            if (contextWithDocumentVars.PipelineVariables != null)
             {
-                foreach (var kvp in context.PipelineVariables)
+                foreach (var kvp in contextWithDocumentVars.PipelineVariables)
                 {
                     resolvedVars.Add(new ResolvedVariable
                     {
@@ -185,7 +200,7 @@ public class VariableProcessor : IVariableProcessor
             {
                 try
                 {
-                    newContent = ExpandVariables(document.RawContent!, context);
+                    newContent = ExpandVariables(document.RawContent!, contextWithDocumentVars);
                 }
                 catch (Exception ex)
                 {
@@ -263,5 +278,82 @@ public class VariableProcessor : IVariableProcessor
                context.PipelineVariables?.ContainsKey(varName) == true ||
                context.EnvironmentVariables?.ContainsKey(varName) == true ||
                context.Parameters?.ContainsKey(varName) == true;
+    }
+
+    private Dictionary<string, object> ExtractDefinedVariables(PipelineDocument document)
+    {
+        var vars = new Dictionary<string, object>();
+
+        if (string.IsNullOrEmpty(document?.RawContent))
+            return vars;
+
+        // Strategy: Find all 'variables:' sections and extract the key-value pairs following them
+        // Look for patterns like:
+        //   variables:
+        //     key: value
+        // This works for both pipeline-level and job-level variables
+
+        var lines = document.RawContent.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            
+            // Check if this line contains 'variables:'
+            var variablesMatch = Regex.Match(line, @"^(\s*)variables\s*:\s*$");
+            if (variablesMatch.Success)
+            {
+                var baseIndent = variablesMatch.Groups[1].Value.Length;
+                var expectedIndent = baseIndent + 2; // Variables should be indented 2 more spaces
+                
+                // Now read the following lines that have the correct indentation
+                for (int j = i + 1; j < lines.Length; j++)
+                {
+                    var varLine = lines[j];
+                    
+                    // Skip empty lines
+                    if (string.IsNullOrWhiteSpace(varLine))
+                        continue;
+                    
+                    // Check if this line has the expected indentation for a variable
+                    var varMatch = Regex.Match(varLine, @"^(\s*)(\w[\w-]*)\s*:\s*(.*)$");
+                    if (varMatch.Success)
+                    {
+                        var indent = varMatch.Groups[1].Value.Length;
+                        
+                        // If indent is less than expected, we've moved out of the variables section
+                        if (indent < expectedIndent)
+                            break;
+                        
+                        // If indent matches, this is a variable definition
+                        if (indent == expectedIndent)
+                        {
+                            var varName = varMatch.Groups[2].Value.Trim();
+                            var varValue = varMatch.Groups[3].Value.Trim();
+                            if (!string.IsNullOrEmpty(varName))
+                            {
+                                vars[varName] = varValue;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Line doesn't match variable pattern, might be end of variables section
+                        break;
+                    }
+                }
+            }
+        }
+
+        return vars;
+    }
+
+    private Dictionary<string, object> MergeDictionaries(IReadOnlyDictionary<string, object>? dict1, Dictionary<string, object> dict2)
+    {
+        var result = new Dictionary<string, object>(dict1 ?? new Dictionary<string, object>());
+        foreach (var kvp in dict2)
+        {
+            result[kvp.Key] = kvp.Value;
+        }
+        return result;
     }
 }

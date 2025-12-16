@@ -87,8 +87,7 @@ public class DemoPipelinesTests
             ValidateVariables = true,
             InlineVariables = inlineVariables ?? new Dictionary<string, string>(),
             VariableFiles = variableFilePath != null ? new[] { variableFilePath } : null,
-            FailOnWarnings = false,
-            AllowUnresolvedVariables = true
+            FailOnWarnings = false
         };
 
         return await _orchestrator.ValidateAsync(request, CancellationToken.None);
