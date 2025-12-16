@@ -54,15 +54,7 @@ jobs:
         run: dotnet restore ${{ env.PROJECT_PATH }}
       
       - name: Publish application
-        run: |
-          dotnet publish ${{ env.PROJECT_PATH }} \
-            --configuration Release \
-            --runtime ${{ matrix.rid }} \
-            --self-contained true \
-            --output publish/${{ matrix.rid }} \
-            /p:PublishSingleFile=true \
-            /p:IncludeNativeLibrariesForSelfExtract=true \
-            /p:PublishTrimmed=false
+        run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --runtime ${{ matrix.rid }} --self-contained true --output publish/${{ matrix.rid }} /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:PublishTrimmed=false
       
       - name: Create archive (Windows)
         if: matrix.os == 'windows'
