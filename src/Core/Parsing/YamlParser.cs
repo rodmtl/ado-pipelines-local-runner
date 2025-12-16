@@ -139,7 +139,15 @@ public class YamlParser : IYamlParser
             }
             catch (YamlException)
             {
-                // If strict parsing fails, try YamlStream and convert nodes
+                var hasMacroSyntax = content.Contains("$(") || content.Contains("${{");
+
+                if (!hasMacroSyntax)
+                {
+                    // Preserve syntax error for non-macro content
+                    throw;
+                }
+
+                // If strict parsing fails on macro syntax, try YamlStream and convert nodes
                 try
                 {
                     var yaml = new YamlDotNet.RepresentationModel.YamlStream();
@@ -152,8 +160,7 @@ public class YamlParser : IYamlParser
                 }
                 catch
                 {
-                    // Both parsers failed, rethrow original
-                    throw;
+                    // Both parsers failed; rawData remains null and will trigger macro fallback below
                 }
             }
 
@@ -267,6 +274,19 @@ public class YamlParser : IYamlParser
         }
         catch (YamlException yamlEx)
         {
+            // For pipeline documents, allow a graceful fallback when macros break YAML parsing
+            if (typeof(T) == typeof(PipelineDocument) && content.Contains("$("))
+            {
+                var doc = ExtractPipelineDocumentFromRaw(content, filePath);
+                return new ParserResult<T>
+                {
+                    Success = true,
+                    Data = (T)(object)doc,
+                    Errors = Array.Empty<ParseError>(),
+                    SourceMap = sourceMap
+                };
+            }
+
             var error = new ParseError
             {
                 Code = "YAML_SYNTAX_ERROR",
@@ -412,7 +432,6 @@ public class YamlParser : IYamlParser
         // This allows validation to proceed even if full YAML parsing fails
         var jobs = new List<object>();
         var stages = new List<object>();
-        var steps = new List<object>();
 
         // Simple heuristic: if file contains "- job:" or "- template:" at root level, add a placeholder
         if (System.Text.RegularExpressions.Regex.IsMatch(content, @"^\s*-\s+(job|template):", System.Text.RegularExpressions.RegexOptions.Multiline))
@@ -426,18 +445,16 @@ public class YamlParser : IYamlParser
             stages.Add(new { displayName = "ExtractedStage" });
         }
 
-        if (System.Text.RegularExpressions.Regex.IsMatch(content, @"^\s+-\s+(script|task):", System.Text.RegularExpressions.RegexOptions.Multiline))
-        {
-            steps.Add(new { displayName = "ExtractedStep" });
-        }
+        var hasTrigger = System.Text.RegularExpressions.Regex.IsMatch(content, @"^\s*trigger\s*:", System.Text.RegularExpressions.RegexOptions.Multiline);
 
         return new PipelineDocument
         {
             RawContent = content,
             SourcePath = filePath,
+            Trigger = hasTrigger ? new { enabled = true } : null,
             Jobs = jobs.Count > 0 ? jobs : null,
             Stages = stages.Count > 0 ? stages : null,
-            Steps = steps.Count > 0 ? steps : null
+            Steps = null
         };
     }
 

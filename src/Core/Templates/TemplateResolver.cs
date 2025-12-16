@@ -74,13 +74,24 @@ public class TemplateResolver : ITemplateResolver
                 };
             }
 
-            // Check for circular references
-            if (context.ResolutionStack != null && context.ResolutionStack.Contains(templateReference, StringComparer.OrdinalIgnoreCase))
+            // Resolve relative path
+            var resolvedPath = ResolvePath(templateReference, context.BaseDirectory);
+            // Check for circular references using resolved path and file names
+            var stack = context.ResolutionStack ?? Array.Empty<string>();
+            var resolvedFileName = Path.GetFileName(resolvedPath);
+            var referenceFileName = Path.GetFileName(templateReference);
+            var circular = stack.Any(item =>
+                string.Equals(item, resolvedPath, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item, templateReference, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(Path.GetFileName(item), resolvedFileName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(Path.GetFileName(item), referenceFileName, StringComparison.OrdinalIgnoreCase));
+
+            if (circular)
             {
                 errors.Add(new ValidationError
                 {
                     Code = "CIRCULAR_TEMPLATE_REFERENCE",
-                    Message = $"Circular template reference detected: {templateReference}",
+                    Message = $"Circular template reference detected: {resolvedPath}",
                     Severity = Severity.Error,
                     Location = new SourceLocation
                     {
@@ -88,7 +99,7 @@ public class TemplateResolver : ITemplateResolver
                         Line = 0,
                         Column = 0
                     },
-                    Suggestion = $"Template chain: {string.Join(" -> ", context.ResolutionStack)} -> {templateReference}"
+                    Suggestion = $"Template chain: {string.Join(" -> ", stack)} -> {resolvedPath}"
                 });
 
                 return new TemplateResolutionResult
@@ -99,8 +110,6 @@ public class TemplateResolver : ITemplateResolver
                 };
             }
 
-            // Resolve relative path
-            var resolvedPath = ResolvePath(templateReference, context.BaseDirectory);
 
             // Check if file exists
             if (!File.Exists(resolvedPath))
@@ -181,7 +190,7 @@ public class TemplateResolver : ITemplateResolver
                     Parameters = context.Parameters,
                     MaxDepth = context.MaxDepth,
                     CurrentDepth = context.CurrentDepth + 1,
-                    ResolutionStack = currentStack.Concat(new[] { templateRef }).ToList(),
+                    ResolutionStack = currentStack,
                     RepositoryContext = context.RepositoryContext
                 };
 
