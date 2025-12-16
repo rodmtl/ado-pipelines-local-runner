@@ -74,6 +74,31 @@ public class TemplateResolver : ITemplateResolver
                 };
             }
 
+            // Check for circular references
+            if (context.ResolutionStack != null && context.ResolutionStack.Contains(templateReference, StringComparer.OrdinalIgnoreCase))
+            {
+                errors.Add(new ValidationError
+                {
+                    Code = "CIRCULAR_TEMPLATE_REFERENCE",
+                    Message = $"Circular template reference detected: {templateReference}",
+                    Severity = Severity.Error,
+                    Location = new SourceLocation
+                    {
+                        FilePath = templateReference,
+                        Line = 0,
+                        Column = 0
+                    },
+                    Suggestion = $"Template chain: {string.Join(" -> ", context.ResolutionStack)} -> {templateReference}"
+                });
+
+                return new TemplateResolutionResult
+                {
+                    Success = false,
+                    Errors = errors,
+                    Source = templateReference
+                };
+            }
+
             // Resolve relative path
             var resolvedPath = ResolvePath(templateReference, context.BaseDirectory);
 
