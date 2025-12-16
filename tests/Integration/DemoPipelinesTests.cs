@@ -170,7 +170,7 @@ public class DemoPipelinesTests
         response.Summary.ErrorCount.Should().Be(0);
         response.Details.Should().NotBeNull();
         response.Details.VariableProcessing.Should().NotBeNull();
-        response.Details.VariableProcessing.Success.Should().BeTrue();
+        response.Details.VariableProcessing!.Success.Should().BeTrue();
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class DemoPipelinesTests
     }
 
     [Fact]
-    public async Task AllDemoFiles_ShouldExist()
+    public void AllDemoFiles_ShouldExist()
     {
         // Arrange
         var expectedDemos = new[]
