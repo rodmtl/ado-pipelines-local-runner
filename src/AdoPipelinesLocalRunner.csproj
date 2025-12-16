@@ -8,6 +8,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <AssemblyName>azp-local</AssemblyName>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Product>Azure DevOps Pipelines Local Runner</Product>
+    <Description>Validate Azure DevOps pipeline YAML files locally</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -2,11 +2,19 @@ using System.Text;
 using System.Text.Json;
 using AdoPipelinesLocalRunner.Contracts.Configuration;
 using AdoPipelinesLocalRunner.Contracts;
+using AdoPipelinesLocalRunner.Utils;
 
 namespace AdoPipelinesLocalRunner.Core.Reporting;
 
 public class ErrorReporter : IErrorReporter
 {
+    private readonly bool _useColors;
+
+    public ErrorReporter()
+    {
+        // Enable colors by default for console output
+        _useColors = true;
+    }
     public ReportOutput GenerateReport(
         string sourcePath,
         IReadOnlyList<ValidationError> errors,
@@ -36,7 +44,7 @@ public class ErrorReporter : IErrorReporter
             },
             _ => new ReportOutput
             {
-                Content = BuildText(sourcePath, errors, warnings, categories),
+                Content = BuildText(sourcePath, errors, warnings, categories, _useColors),
                 Format = OutputFormat.Text,
                 FileNameSuggestion = MakeSuggestion(sourcePath, "txt")
             }
@@ -51,46 +59,149 @@ public class ErrorReporter : IErrorReporter
         return $"{baseName}-report.{ext}";
     }
 
-    private static string BuildText(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings, Dictionary<string, (int errors, int warnings)> categories)
+    private static string BuildText(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings, Dictionary<string, (int errors, int warnings)> categories, bool useColors)
     {
         var sb = new StringBuilder();
+        
+        // Write source and counts
         sb.AppendLine($"Source: {sourcePath ?? "<unknown>"}");
-        sb.AppendLine($"Errors: {errors.Count}, Warnings: {warnings.Count}");
+        
+        if (useColors && errors.Count == 0 && warnings.Count == 0)
+        {
+            sb.Append("Status: ");
+            AppendColored(sb, "✓ Success", "Green");
+            sb.AppendLine($" - Errors: {errors.Count}, Warnings: {warnings.Count}");
+        }
+        else
+        {
+            sb.Append("Status: ");
+            if (errors.Count > 0)
+            {
+                AppendColored(sb, $"✗ Failed", "Red");
+                sb.AppendLine($" - Errors: {errors.Count}, Warnings: {warnings.Count}");
+            }
+            else if (warnings.Count > 0)
+            {
+                AppendColored(sb, "⚠ Warning", "Yellow");
+                sb.AppendLine($" - Errors: {errors.Count}, Warnings: {warnings.Count}");
+            }
+            else
+            {
+                sb.AppendLine($"Errors: {errors.Count}, Warnings: {warnings.Count}");
+            }
+        }
+        
         if (categories.Count > 0)
         {
             sb.AppendLine("By Category:");
             foreach (var kvp in categories)
             {
-                sb.AppendLine($"- {kvp.Key}: errors={kvp.Value.errors}, warnings={kvp.Value.warnings}");
+                sb.AppendLine($"  - {kvp.Key}: errors={kvp.Value.errors}, warnings={kvp.Value.warnings}");
             }
         }
+        
         if (errors.Count > 0)
         {
-            sb.AppendLine("\nErrors:");
+            sb.AppendLine();
+            if (useColors)
+            {
+                AppendColored(sb, "ERRORS:", "Red");
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine("ERRORS:");
+            }
+            
             foreach (var e in errors)
             {
-                sb.AppendLine($"  [{e.Code}] {e.Message}");
+                if (useColors)
+                {
+                    sb.Append("  ");
+                    AppendColored(sb, $"[{e.Code}]", "Red");
+                    sb.AppendLine($" {e.Message}");
+                }
+                else
+                {
+                    sb.AppendLine($"  [{e.Code}] {e.Message}");
+                }
+                
                 sb.AppendLine($"  Location: {e.Location?.FilePath}:{e.Location?.Line}:{e.Location?.Column ?? 1}");
                 if (!string.IsNullOrWhiteSpace(e.Suggestion))
                 {
-                    sb.AppendLine($"  ✓ Fix: {e.Suggestion}");
+                    if (useColors)
+                    {
+                        sb.Append("  ");
+                        AppendColored(sb, "✓ Fix:", "Cyan");
+                        sb.AppendLine($" {e.Suggestion}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"  ✓ Fix: {e.Suggestion}");
+                    }
                 }
             }
         }
+        
         if (warnings.Count > 0)
         {
-            sb.AppendLine("\nWarnings:");
+            sb.AppendLine();
+            if (useColors)
+            {
+                AppendColored(sb, "WARNINGS:", "Yellow");
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine("WARNINGS:");
+            }
+            
             foreach (var w in warnings)
             {
-                sb.AppendLine($"  [{w.Code}] {w.Message}");
+                if (useColors)
+                {
+                    sb.Append("  ");
+                    AppendColored(sb, $"[{w.Code}]", "Yellow");
+                    sb.AppendLine($" {w.Message}");
+                }
+                else
+                {
+                    sb.AppendLine($"  [{w.Code}] {w.Message}");
+                }
+                
                 sb.AppendLine($"  Location: {w.Location?.FilePath}:{w.Location?.Line}:{w.Location?.Column ?? 1}");
                 if (!string.IsNullOrWhiteSpace(w.Suggestion))
                 {
-                    sb.AppendLine($"  ✓ Fix: {w.Suggestion}");
+                    if (useColors)
+                    {
+                        sb.Append("  ");
+                        AppendColored(sb, "✓ Fix:", "Cyan");
+                        sb.AppendLine($" {w.Suggestion}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"  ✓ Fix: {w.Suggestion}");
+                    }
                 }
             }
         }
+        
         return sb.ToString();
+    }
+
+    private static void AppendColored(StringBuilder sb, string text, string color)
+    {
+        // Use ANSI color codes for colored text in console
+        var colorCode = color.ToLowerInvariant() switch
+        {
+            "red" => "\u001b[91m",
+            "green" => "\u001b[92m",
+            "yellow" => "\u001b[93m",
+            "cyan" => "\u001b[96m",
+            _ => ""
+        };
+        var resetCode = "\u001b[0m";
+        sb.Append($"{colorCode}{text}{resetCode}");
     }
 
     private static string BuildMarkdown(string sourcePath, IReadOnlyList<ValidationError> errors, IReadOnlyList<ValidationError> warnings, Dictionary<string, (int errors, int warnings)> categories)

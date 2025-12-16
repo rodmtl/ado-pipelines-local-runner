@@ -1,10 +1,12 @@
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Collections.Generic;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AdoPipelinesLocalRunner.Contracts;
 using AdoPipelinesLocalRunner.Core.Reporting;
+using AdoPipelinesLocalRunner.Utils;
 
 namespace AdoPipelinesLocalRunner;
 
@@ -89,6 +91,15 @@ public class Program
 
         validateCmd.SetHandler(async (InvocationContext ctx) =>
         {
+            // Get version info
+            var version = Assembly.GetExecutingAssembly()
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
+                ?? "1.0.0";
+
+            // Show header
+            ConsoleHelper.WriteHeader("Azure DevOps Pipelines Local Runner", version);
+
             var pipeline = ctx.ParseResult.GetValueForOption(pipelineOpt)!;
             var basePath = ctx.ParseResult.GetValueForOption(basePathOpt);
             var schemaVersion = ctx.ParseResult.GetValueForOption(schemaVerOpt);
@@ -106,7 +117,7 @@ public class Program
                 var parts = entry.Split('=', 2);
                 if (parts.Length != 2)
                 {
-                    Console.Error.WriteLine($"Invalid --var entry: {entry}. Expected key=value.");
+                    ConsoleHelper.WriteError($"Invalid --var entry: {entry}. Expected key=value.");
                     ctx.ExitCode = 3;
                     return;
                 }
@@ -146,15 +157,39 @@ public class Program
             var resp = await orchestrator.ValidateAsync(req, CancellationToken.None);
             var report = reporter.GenerateReport(pipeline, resp.Details.AllErrors, resp.Details.AllWarnings, format);
             Console.WriteLine(report.Content);
+            
+            // Add success/failure message at the end
+            Console.WriteLine();
+            if (resp.Status == Contracts.Commands.ValidationStatus.Success)
+            {
+                ConsoleHelper.WriteSuccess("Pipeline validation completed successfully!");
+            }
+            else if (resp.Status == Contracts.Commands.ValidationStatus.SuccessWithWarnings)
+            {
+                if (strict)
+                {
+                    ConsoleHelper.WriteError("✗ Pipeline validation failed (warnings treated as errors in strict mode)");
+                }
+                else
+                {
+                    ConsoleHelper.WriteWarning("⚠ Pipeline validation completed with warnings");
+                }
+            }
+            else if (resp.Status == Contracts.Commands.ValidationStatus.Failed)
+            {
+                ConsoleHelper.WriteError("✗ Pipeline validation failed");
+            }
+            
             if (!string.IsNullOrWhiteSpace(logFile))
             {
                 try
                 {
                     await File.WriteAllTextAsync(logFile!, report.Content);
+                    ConsoleHelper.WriteInfo($"Report saved to: {logFile}");
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"Failed to write log file: {ex.Message}");
+                    ConsoleHelper.WriteError($"Failed to write log file: {ex.Message}");
                     ctx.ExitCode = 3;
                     return;
                 }
