@@ -21,14 +21,52 @@ A command-line tool for validating Azure DevOps YAML pipelines locally, enabling
 
 ## Installation
 
-### Prerequisites
+### Download Pre-built Binary (Recommended)
 
-- .NET 8.0 SDK or later
+Download the latest release for your platform from the [Releases](https://github.com/rodmtl/ado-pipelines-local-runner/releases) page:
+
+**Windows:**
+
+```powershell
+# Download azp-local-win-x64.zip and extract
+Expand-Archive -Path azp-local-win-x64.zip -DestinationPath azp-local
+cd azp-local
+.\azp-local.exe --help
+```
+
+**Linux:**
+
+```bash
+# Download and extract azp-local-linux-x64.tar.gz
+tar -xzf azp-local-linux-x64.tar.gz
+chmod +x azp-local
+./azp-local --help
+```
+
+**macOS:**
+
+```bash
+# Download and extract azp-local-osx-x64.tar.gz
+tar -xzf azp-local-osx-x64.tar.gz
+chmod +x azp-local
+./azp-local --help
+```
+
+> 💡 **Tip:** Add the extracted directory to your PATH for easier access.
 
 ### Build from Source
 
+If you prefer to build from source:
+
+**Prerequisites:**
+
+- .NET 8.0 SDK or later
+
+**Steps:**
+
 ```bash
 # Clone the repository
+git clone https://github.com/rodmtl/ado-pipelines-local-runner.git
 cd ado-pipelines-local-runner
 
 # Build the project

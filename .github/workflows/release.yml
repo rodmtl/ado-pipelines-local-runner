@@ -1,0 +1,165 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_PATH: 'src/AdoPipelinesLocalRunner.csproj'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_tag: ${{ steps.get_tag.outputs.tag }}
+    
+    steps:
+      - name: Get tag name
+        id: get_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          release_name: Release ${{ steps.get_tag.outputs.tag }}
+          body: |
+            ## Azure DevOps Pipelines Local Runner ${{ steps.get_tag.outputs.tag }}
+            
+            ### Downloads
+            - **Windows**: `azp-local-win-x64.zip`
+            - **Linux**: `azp-local-linux-x64.tar.gz`
+            - **macOS**: `azp-local-osx-x64.tar.gz`
+            
+            ### Installation
+            1. Download the appropriate archive for your platform
+            2. Extract the archive
+            3. Run `azp-local --help` to see available commands
+            
+            ### Usage
+            ```bash
+            azp-local validate <path-to-pipeline.yml>
+            ```
+            
+            See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed documentation.
+          draft: false
+          prerelease: false
+
+  build-and-publish:
+    name: Build and Publish - ${{ matrix.os }}
+    needs: create-release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            runner: windows-latest
+            rid: win-x64
+            artifact: azp-local-win-x64.zip
+            content-type: application/zip
+          - os: linux
+            runner: ubuntu-latest
+            rid: linux-x64
+            artifact: azp-local-linux-x64.tar.gz
+            content-type: application/gzip
+          - os: macos
+            runner: macos-latest
+            rid: osx-x64
+            artifact: azp-local-osx-x64.tar.gz
+            content-type: application/gzip
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.PROJECT_PATH }}
+      
+      - name: Publish application
+        run: |
+          dotnet publish ${{ env.PROJECT_PATH }} \
+            --configuration Release \
+            --runtime ${{ matrix.rid }} \
+            --self-contained true \
+            --output publish/${{ matrix.rid }} \
+            /p:PublishSingleFile=true \
+            /p:IncludeNativeLibrariesForSelfExtract=true \
+            /p:PublishTrimmed=false
+      
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          cd publish/${{ matrix.rid }}
+          Compress-Archive -Path * -DestinationPath ../../${{ matrix.artifact }}
+      
+      - name: Create archive (Linux/macOS)
+        if: matrix.os != 'windows'
+        run: |
+          cd publish/${{ matrix.rid }}
+          tar -czf ../../${{ matrix.artifact }} *
+      
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.artifact }}
+          asset_name: ${{ matrix.artifact }}
+          asset_content_type: ${{ matrix.content-type }}
+      
+      - name: Upload artifact for verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ./${{ matrix.artifact }}
+          retention-days: 7
+
+  verify-release:
+    name: Verify Release
+    needs: [create-release, build-and-publish]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+      
+      - name: Verify artifacts
+        run: |
+          echo "Release ${{ needs.create-release.outputs.release_tag }} artifacts:"
+          ls -lh
+          
+          echo ""
+          echo "Windows build:"
+          unzip -l azp-local-win-x64.zip/azp-local-win-x64.zip || echo "Failed to list Windows archive"
+          
+          echo ""
+          echo "Linux build:"
+          tar -tzf azp-local-linux-x64.tar.gz/azp-local-linux-x64.tar.gz || echo "Failed to list Linux archive"
+          
+          echo ""
+          echo "macOS build:"
+          tar -tzf azp-local-osx-x64.tar.gz/azp-local-osx-x64.tar.gz || echo "Failed to list macOS archive"
