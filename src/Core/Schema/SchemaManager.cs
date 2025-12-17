@@ -5,6 +5,7 @@ namespace AdoPipelinesLocalRunner.Core.Schema;
 /// <summary>
 /// Implementation of ISchemaManager.
 /// Manages Azure DevOps pipeline schema definitions with local caching.
+/// Implements Single Responsibility through separated validation and loading concerns.
 /// </summary>
 public class SchemaManager : ISchemaManager
 {
@@ -48,6 +49,13 @@ public class SchemaManager : ISchemaManager
         return null;
     }
 
+    /// <summary>
+    /// Validates a pipeline document against a specific schema version.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Schema validation orchestration.
+    /// Delegates validation steps to focused helper methods.
+    /// </remarks>
     private SchemaValidationResult ValidateInternal(PipelineDocument document, string? schemaVersion)
     {
         var version = schemaVersion ?? _defaultSchemaVersion;
@@ -55,81 +63,12 @@ public class SchemaManager : ISchemaManager
 
         try
         {
-            if (!_schemaCache.TryGetValue(version, out var schema))
-            {
-                errors.Add(new ValidationError
-                {
-                    Code = "SCHEMA_NOT_FOUND",
-                    Message = $"Schema version '{version}' not found",
-                    Severity = Severity.Error,
-                    Location = new SourceLocation
-                    {
-                        FilePath = document?.SourcePath ?? "<unknown>",
-                        Line = 1,
-                        Column = 1
-                    }
-                });
+            // Verify schema exists
+            if (!_schemaCache.TryGetValue(version, out var _))
+                return CreateSchemaNotFoundError(version, document);
 
-                return new SchemaValidationResult
-                {
-                    IsValid = false,
-                    SchemaVersion = version,
-                    Errors = errors
-                };
-            }
-
-            // Basic validation: check for required root properties
-            if (document == null)
-            {
-                errors.Add(new ValidationError
-                {
-                    Code = "SCHEMA_INVALID_DOCUMENT",
-                    Message = "Pipeline document is null",
-                    Severity = Severity.Error,
-                    Location = new SourceLocation
-                    {
-                        FilePath = document?.SourcePath ?? "<unknown>",
-                        Line = 1,
-                        Column = 1
-                    }
-                });
-            }
-            else
-            {
-                if (document.Trigger == null)
-                {
-                    errors.Add(new ValidationError
-                    {
-                        Code = "SCHEMA_MISSING_TRIGGER",
-                        Message = "Required property 'trigger' is missing",
-                        Severity = Severity.Error,
-                        Location = new SourceLocation
-                        {
-                            FilePath = document.SourcePath ?? "<unknown>",
-                            Line = 1,
-                            Column = 1
-                        },
-                        Suggestion = "Add a trigger section (e.g. 'trigger: none' or branches)."
-                    });
-                }
-
-                if (document.Stages == null && document.Jobs == null && document.Steps == null)
-                {
-                    errors.Add(new ValidationError
-                    {
-                        Code = "SCHEMA_MISSING_WORK",
-                        Message = "Pipeline must define stages, jobs, or steps",
-                        Severity = Severity.Error,
-                        Location = new SourceLocation
-                        {
-                            FilePath = document.SourcePath ?? "<unknown>",
-                            Line = 1,
-                            Column = 1
-                        },
-                        Suggestion = "Add at least one stage, job, or step definition."
-                    });
-                }
-            }
+            // Validate document structure
+            ValidateDocumentStructure(document, errors);
 
             return new SchemaValidationResult
             {
@@ -140,19 +79,7 @@ public class SchemaManager : ISchemaManager
         }
         catch (Exception ex)
         {
-            errors.Add(new ValidationError
-            {
-                Code = "SCHEMA_VALIDATION_ERROR",
-                Message = $"Error during schema validation: {ex.Message}",
-                Severity = Severity.Error,
-                Location = new SourceLocation
-                {
-                    FilePath = document?.SourcePath ?? "<unknown>",
-                    Line = 1,
-                    Column = 1
-                }
-            });
-
+            errors.Add(CreateValidationException(document, ex));
             return new SchemaValidationResult
             {
                 IsValid = false,
@@ -162,18 +89,134 @@ public class SchemaManager : ISchemaManager
         }
     }
 
+    /// <summary>
+    /// Creates an error result when schema is not found.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Error creation for missing schema.
+    /// </remarks>
+    private SchemaValidationResult CreateSchemaNotFoundError(string version, PipelineDocument? document)
+    {
+        var error = new ValidationError
+        {
+            Code = "SCHEMA_NOT_FOUND",
+            Message = $"Schema version '{version}' not found",
+            Severity = Severity.Error,
+            Location = new SourceLocation { FilePath = document?.SourcePath ?? "<unknown>", Line = 1, Column = 1 }
+        };
+        return new SchemaValidationResult { IsValid = false, SchemaVersion = version, Errors = new[] { error } };
+    }
+
+    /// <summary>
+    /// Validates the structure of a pipeline document.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Document structure validation.
+    /// </remarks>
+    private void ValidateDocumentStructure(PipelineDocument? document, List<ValidationError> errors)
+    {
+        if (document == null)
+        {
+            errors.Add(new ValidationError
+            {
+                Code = "SCHEMA_INVALID_DOCUMENT",
+                Message = "Pipeline document is null",
+                Severity = Severity.Error,
+                Location = new SourceLocation { FilePath = "<unknown>", Line = 1, Column = 1 }
+            });
+            return;
+        }
+
+        ValidateTriggerDefinition(document, errors);
+        ValidateWorkDefinition(document, errors);
+    }
+
+    /// <summary>
+    /// Validates that a trigger is defined.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Trigger validation.
+    /// </remarks>
+    private void ValidateTriggerDefinition(PipelineDocument document, List<ValidationError> errors)
+    {
+        if (document.Trigger != null)
+            return;
+
+        errors.Add(new ValidationError
+        {
+            Code = "SCHEMA_MISSING_TRIGGER",
+            Message = "Required property 'trigger' is missing",
+            Severity = Severity.Error,
+            Location = new SourceLocation { FilePath = document.SourcePath ?? "<unknown>", Line = 1, Column = 1 },
+            Suggestion = "Add a trigger section (e.g. 'trigger: none' or branches)."
+        });
+    }
+
+    /// <summary>
+    /// Validates that work is defined (stages, jobs, or steps).
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Work definition validation.
+    /// </remarks>
+    private void ValidateWorkDefinition(PipelineDocument document, List<ValidationError> errors)
+    {
+        var hasStages = document.Stages?.Count > 0;
+        var hasJobs = document.Jobs?.Count > 0;
+        var hasSteps = document.Steps?.Count > 0;
+
+        if (hasStages || hasJobs || hasSteps)
+            return;
+
+        errors.Add(new ValidationError
+        {
+            Code = "SCHEMA_MISSING_WORK",
+            Message = "Pipeline must define stages, jobs, or steps",
+            Severity = Severity.Error,
+            Location = new SourceLocation { FilePath = document.SourcePath ?? "<unknown>", Line = 1, Column = 1 },
+            Suggestion = "Add at least one stage, job, or step definition."
+        });
+    }
+
+    /// <summary>
+    /// Creates an error from an exception during validation.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Exception error creation.
+    /// </remarks>
+    private ValidationError CreateValidationException(PipelineDocument? document, Exception ex) =>
+        new()
+        {
+            Code = "SCHEMA_VALIDATION_ERROR",
+            Message = $"Error during schema validation: {ex.Message}",
+            Severity = Severity.Error,
+            Location = new SourceLocation { FilePath = document?.SourcePath ?? "<unknown>", Line = 1, Column = 1 }
+        };
+
+    /// <summary>
+    /// Loads a schema definition from cache or creates a minimal one.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Schema loading.
+    /// Phase 1 returns minimal schema; real implementation would load from file/web.
+    /// </remarks>
     private SchemaDefinition LoadSchemaInternal(string schemaSource)
     {
         if (_schemaCache.TryGetValue(schemaSource, out var cached))
-        {
             return cached;
-        }
 
-        // For Phase 1, return a minimal schema definition
-        // In real implementation, would load from file/web
-        return new SchemaDefinition
+        return CreateMinimalSchema(schemaSource);
+    }
+
+    /// <summary>
+    /// Creates a minimal schema definition for a given version.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Minimal schema creation.
+    /// </remarks>
+    private SchemaDefinition CreateMinimalSchema(string version) =>
+        new()
         {
-            Version = schemaSource,
+            Version = version,
             Schema = "https://raw.githubusercontent.com/microsoft/azure-pipelines-vscode/main/service-schema.json",
             Types = new Dictionary<string, TypeSchema>
             {
@@ -181,8 +224,13 @@ public class SchemaManager : ISchemaManager
             },
             RootType = "Pipeline"
         };
-    }
 
+    /// <summary>
+    /// Initializes default schema definitions for the supported versions.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Default schema initialization.
+    /// </remarks>
     private void InitializeDefaultSchemas()
     {
         var defaultSchema = new SchemaDefinition
