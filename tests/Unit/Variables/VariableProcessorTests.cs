@@ -685,6 +685,7 @@ script: echo $(myVar) $(anotherVar)"
 
         // Assert
         Assert.True(result.Success);
+        Assert.NotNull(result.ProcessedDocument);
         Assert.Contains("myValue", result.ProcessedDocument.RawContent!);
         Assert.Contains("anotherValue", result.ProcessedDocument.RawContent!);
         Assert.NotEmpty(result.ResolvedVariables);
