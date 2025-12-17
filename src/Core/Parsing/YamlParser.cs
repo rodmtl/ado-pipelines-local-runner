@@ -3,7 +3,6 @@ using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using System.Dynamic;
 
 namespace AdoPipelinesLocalRunner.Core.Parsing;
 

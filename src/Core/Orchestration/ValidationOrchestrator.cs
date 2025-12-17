@@ -24,60 +24,159 @@ public class ValidationOrchestrator : IValidationOrchestrator
     private readonly ILogger<ValidationOrchestrator> _logger;
 
 
+        /// <summary>
+        /// Loads and merges variables from files and inline sources into a single dictionary.
+        /// </summary>
+        /// <param name="files">Variable file paths to load</param>
+        /// <param name="inline">Inline variable key-value pairs to merge</param>
+        /// <param name="baseDir">Base directory for relative file paths</param>
+        /// <param name="errors">Error collection to append any loading errors to</param>
+        /// <returns>Dictionary of all loaded variables (files merged with inline)</returns>
         private IReadOnlyDictionary<string, object> LoadVariables(IEnumerable<string> files, IReadOnlyDictionary<string, string>? inline, string? baseDir, List<ValidationError> errors)
         {
-            var deserializer = new DeserializerBuilder()
+            var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+            // Load variables from files
+            LoadVariablesFromFiles(files, baseDir, result, errors);
+
+            // Merge inline variables
+            MergeInlineVariables(inline, result);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Loads variables from YAML files and adds them to the result dictionary.
+        /// </summary>
+        /// <remarks>
+        /// Single Responsibility: Handles only file loading logic, separated from inline variable handling.
+        /// </remarks>
+        private void LoadVariablesFromFiles(IEnumerable<string> files, string? baseDir, Dictionary<string, object> result, List<ValidationError> errors)
+        {
+            var deserializer = CreateYamlDeserializer();
+
+            foreach (var file in files)
+            {
+                var path = ResolveVariableFilePath(file, baseDir);
+
+                if (!TryLoadVariableFile(path, deserializer, result, errors))
+                {
+                    continue;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates a YAML deserializer configured for variable file parsing.
+        /// </summary>
+        /// <remarks>
+        /// Single Responsibility: Isolates deserializer configuration for easy testing/modification.
+        /// </remarks>
+        private IDeserializer CreateYamlDeserializer() =>
+            new DeserializerBuilder()
                 .WithNamingConvention(CamelCaseNamingConvention.Instance)
                 .IgnoreUnmatchedProperties()
                 .Build();
 
-            var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            foreach (var file in files)
-            {
-                var path = baseDir != null && !Path.IsPathRooted(file) ? Path.Combine(baseDir, file) : file;
-                if (!File.Exists(path))
-                {
-                    errors.Add(new ValidationError
-                    {
-                        Code = "VARIABLE_FILE_NOT_FOUND",
-                        Message = $"Variable file not found: {path}",
-                        Severity = Severity.Error,
-                        Location = new SourceLocation { FilePath = path, Line = 0, Column = 0 }
-                    });
-                    continue;
-                }
+        /// <summary>
+        /// Resolves a variable file path, handling relative paths based on the base directory.
+        /// </summary>
+        /// <remarks>
+        /// Single Responsibility: Pure path resolution logic, no side effects.
+        /// </remarks>
+        private string ResolveVariableFilePath(string file, string? baseDir) =>
+            baseDir != null && !Path.IsPathRooted(file) ? Path.Combine(baseDir, file) : file;
 
-                try
-                {
-                    var content = File.ReadAllText(path);
-                    var parsed = deserializer.Deserialize<Dictionary<string, object>>(content) ?? new Dictionary<string, object>();
-                    foreach (var kvp in parsed)
-                    {
-                        result[kvp.Key] = kvp.Value;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    errors.Add(new ValidationError
-                    {
-                        Code = "VARIABLE_FILE_INVALID",
-                        Message = $"Failed to read variables from {path}: {ex.Message}",
-                        Severity = Severity.Error,
-                        Location = new SourceLocation { FilePath = path, Line = 0, Column = 0 }
-                    });
-                }
+        /// <summary>
+        /// Attempts to load a single variable file and merge its contents into the result dictionary.
+        /// </summary>
+        /// <remarks>
+        /// Single Responsibility: Handles loading logic for a single file with error handling.
+        /// </remarks>
+        private bool TryLoadVariableFile(string path, IDeserializer deserializer, Dictionary<string, object> result, List<ValidationError> errors)
+        {
+            if (!File.Exists(path))
+            {
+                errors.Add(CreateVariableFileNotFoundError(path));
+                return false;
             }
 
-            if (inline != null)
+            try
             {
-                foreach (var kvp in inline)
-                {
-                    result[kvp.Key] = kvp.Value;
-                }
+                var content = File.ReadAllText(path);
+                var parsed = deserializer.Deserialize<Dictionary<string, object>>(content) ?? new Dictionary<string, object>();
+                MergeVariableDictionary(parsed, result);
+                return true;
             }
-
-            return result;
+            catch (Exception ex)
+            {
+                errors.Add(CreateVariableFileInvalidError(path, ex));
+                return false;
+            }
         }
+
+        /// <summary>
+        /// Merges variables from a source dictionary into a result dictionary.
+        /// </summary>
+        /// <remarks>
+        /// Single Responsibility: Pure dictionary merging logic, reusable for multiple merge scenarios.
+        /// </remarks>
+        private void MergeVariableDictionary(Dictionary<string, object> source, Dictionary<string, object> result)
+        {
+            foreach (var kvp in source)
+            {
+                result[kvp.Key] = kvp.Value;
+            }
+        }
+
+        /// <summary>
+        /// Merges inline variables into the result dictionary.
+        /// </summary>
+        /// <remarks>
+        /// Single Responsibility: Handles only inline variable merging.
+        /// </remarks>
+        private void MergeInlineVariables(IReadOnlyDictionary<string, string>? inline, Dictionary<string, object> result)
+        {
+            if (inline == null)
+            {
+                return;
+            }
+
+            foreach (var kvp in inline)
+            {
+                result[kvp.Key] = kvp.Value;
+            }
+        }
+
+        /// <summary>
+        /// Creates a validation error for a missing variable file.
+        /// </summary>
+        /// <remarks>
+        /// Single Responsibility: Error object construction, isolated for consistency.
+        /// </remarks>
+        private ValidationError CreateVariableFileNotFoundError(string path) =>
+            new ValidationError
+            {
+                Code = "VARIABLE_FILE_NOT_FOUND",
+                Message = $"Variable file not found: {path}",
+                Severity = Severity.Error,
+                Location = new SourceLocation { FilePath = path, Line = 0, Column = 0 }
+            };
+
+        /// <summary>
+        /// Creates a validation error for an invalid variable file.
+        /// </summary>
+        /// <remarks>
+        /// Single Responsibility: Error object construction with exception context.
+        /// </remarks>
+        private ValidationError CreateVariableFileInvalidError(string path, Exception ex) =>
+            new ValidationError
+            {
+                Code = "VARIABLE_FILE_INVALID",
+                Message = $"Failed to read variables from {path}: {ex.Message}",
+                Severity = Severity.Error,
+                Location = new SourceLocation { FilePath = path, Line = 0, Column = 0 }
+            };
     public ValidationOrchestrator(
         IYamlParser parser,
         ISyntaxValidator syntaxValidator,
@@ -96,6 +195,21 @@ public class ValidationOrchestrator : IValidationOrchestrator
         _logger = logger;
     }
 
+    /// <summary>
+    /// Validates an Azure Pipelines YAML file through multiple stages (syntax, schema, templates, variables).
+    /// </summary>
+    /// <param name="request">Validation request containing file path and validation options</param>
+    /// <param name="ct">Cancellation token for async operations</param>
+    /// <returns>Comprehensive validation response with errors, warnings, and metrics</returns>
+    /// <remarks>
+    /// Execution flow:
+    /// 1. Parse YAML file
+    /// 2. Run syntax validation
+    /// 3. Optionally validate schema
+    /// 4. Optionally resolve templates
+    /// 5. Optionally process variables
+    /// Each stage can add errors/warnings that contribute to final status determination.
+    /// </remarks>
     public async Task<ValidateResponse> ValidateAsync(ValidateRequest request, CancellationToken ct)
     {
         var start = DateTimeOffset.UtcNow;

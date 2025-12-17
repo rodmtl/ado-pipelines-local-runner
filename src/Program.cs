@@ -1,23 +1,30 @@
 using System.CommandLine;
 using System.CommandLine.Invocation;
-using System.Collections.Generic;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AdoPipelinesLocalRunner.Contracts;
+using AdoPipelinesLocalRunner.Contracts.Commands;
+using AdoPipelinesLocalRunner.Contracts.Configuration;
 using AdoPipelinesLocalRunner.Core.Reporting;
 using AdoPipelinesLocalRunner.Utils;
+using ConfigOutputFormat = AdoPipelinesLocalRunner.Contracts.Configuration.OutputFormat;
+using MsLogLevel = Microsoft.Extensions.Logging.LogLevel;
+using CommandOutputFormat = AdoPipelinesLocalRunner.Contracts.Commands.OutputFormat;
 
 namespace AdoPipelinesLocalRunner;
 
 /// <summary>
 /// Main entry point for the ADO Pipelines Local Runner CLI application.
+/// Handles command-line parsing, service configuration, and command execution.
 /// </summary>
 public class Program
 {
+    /// <summary>
+    /// Main entry point.
+    /// </summary>
     static async Task<int> Main(string[] args)
     {
-        // Configure services
         var services = new ServiceCollection();
         ConfigureServices(services);
         var serviceProvider = services.BuildServiceProvider();
@@ -26,224 +33,353 @@ public class Program
         return await rootCommand.InvokeAsync(args);
     }
 
+    /// <summary>
+    /// Builds the root command with validate subcommand.
+    /// </summary>
     public static RootCommand BuildRootCommand(IServiceProvider serviceProvider)
     {
         var rootCommand = new RootCommand("Azure DevOps Pipelines Local Runner - Validate and test pipelines locally");
-        rootCommand.SetHandler(() =>
-        {
-            Console.WriteLine("Azure DevOps Pipelines Local Runner");
-            Console.WriteLine("Usage: azp-local validate [OPTIONS]");
-            Console.WriteLine("\nExamples:");
-            Console.WriteLine("  azp-local validate --pipeline azure-pipelines.yml");
-            Console.WriteLine("  azp-local validate --pipeline build.yml --base-path ./ --output json");
-            Console.WriteLine("  azp-local validate --pipeline ci.yml --var buildConfig=Release --strict");
-            Console.WriteLine("\nUse 'validate --help' to see all available options");
-        });
+        rootCommand.SetHandler(() => DisplayRootHelp());
 
-        var validateCmd = new Command("validate", "Validate an Azure DevOps pipeline YAML file");
-        var pipelineOpt = new Option<string>(
-            name: "--pipeline", 
-            description: "Path to the pipeline YAML file to validate") 
-        { IsRequired = true };
-        var basePathOpt = new Option<string?>(
-            name: "--base-path", 
-            description: "Base directory path for resolving local template references (default: current directory)");
-        var schemaVerOpt = new Option<string?>(
-            name: "--schema-version", 
-            description: "Azure DevOps schema version to validate against (e.g., '2023-01'). If not specified, uses latest");
-        var varsOpt = new Option<string[]>(
-            name: "--vars", 
-            description: "Variable files to include in validation (YAML format)") 
-        { Arity = ArgumentArity.ZeroOrMore };
-        var inlineVarOpt = new Option<string[]>(
-            name: "--var", 
-            description: "Inline variable in key=value format (can be used multiple times)", 
-            getDefaultValue: () => Array.Empty<string>()) 
-        { Arity = ArgumentArity.ZeroOrMore };
-        var strictOpt = new Option<bool>(
-            name: "--strict", 
-            description: "Treat all warnings as errors; exit with code 1 if warnings are found");
-        var outputOpt = new Option<string>(
-            name: "--output", 
-            description: "Output format: text (default)|json|sarif|markdown", 
-            getDefaultValue: () => "text");
-        var allowUnresolvedOpt = new Option<bool>(
-            name: "--allow-unresolved", 
-            description: "Allow unresolved variables and report them as warnings instead of errors");
-        var verbosityOpt = new Option<string>(
-            name: "--verbosity", 
-            description: "Logging verbosity level: quiet|minimal|normal|detailed (default: normal)", 
-            getDefaultValue: () => "normal");
-        var logFileOpt = new Option<string?>(
-            name: "--log-file", 
-            description: "Optional file path to save validation report");
-
-        validateCmd.AddOption(pipelineOpt);
-        validateCmd.AddOption(basePathOpt);
-        validateCmd.AddOption(schemaVerOpt);
-        validateCmd.AddOption(varsOpt);
-        validateCmd.AddOption(inlineVarOpt);
-        validateCmd.AddOption(strictOpt);
-        validateCmd.AddOption(outputOpt);
-        validateCmd.AddOption(allowUnresolvedOpt);
-        validateCmd.AddOption(verbosityOpt);
-        validateCmd.AddOption(logFileOpt);
-
-        validateCmd.SetHandler(async (InvocationContext ctx) =>
-        {
-            // Get version info
-            var version = Assembly.GetExecutingAssembly()
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
-                ?? "1.0.0";
-
-            // Show header
-            ConsoleHelper.WriteHeader("Azure DevOps Pipelines Local Runner", version);
-
-            var pipeline = ctx.ParseResult.GetValueForOption(pipelineOpt)!;
-            var basePath = ctx.ParseResult.GetValueForOption(basePathOpt);
-            var schemaVersion = ctx.ParseResult.GetValueForOption(schemaVerOpt);
-            var vars = ctx.ParseResult.GetValueForOption(varsOpt) ?? Array.Empty<string>();
-            var inlineVarsRaw = ctx.ParseResult.GetValueForOption(inlineVarOpt) ?? Array.Empty<string>();
-            var strict = ctx.ParseResult.GetValueForOption(strictOpt);
-            var output = ctx.ParseResult.GetValueForOption(outputOpt) ?? "text";
-            var allowUnresolved = ctx.ParseResult.GetValueForOption(allowUnresolvedOpt);
-            var verbosity = ctx.ParseResult.GetValueForOption(verbosityOpt) ?? "normal";
-            var logFile = ctx.ParseResult.GetValueForOption(logFileOpt);
-
-            var inlineVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in inlineVarsRaw)
-            {
-                var parts = entry.Split('=', 2);
-                if (parts.Length != 2)
-                {
-                    ConsoleHelper.WriteError($"Invalid --var entry: {entry}. Expected key=value.");
-                    ctx.ExitCode = 3;
-                    return;
-                }
-                inlineVars[parts[0]] = parts[1];
-            }
-
-            var orchestrator = serviceProvider.GetRequiredService<Core.Orchestration.IValidationOrchestrator>();
-            var reporter = serviceProvider.GetRequiredService<Contracts.IErrorReporter>();
-            var format = output.ToLowerInvariant() switch
-            {
-                "json" => Contracts.Configuration.OutputFormat.Json,
-                "sarif" => Contracts.Configuration.OutputFormat.Sarif,
-                "markdown" => Contracts.Configuration.OutputFormat.Markdown,
-                "text" => Contracts.Configuration.OutputFormat.Text,
-                _ => Contracts.Configuration.OutputFormat.Text
-            };
-
-            var req = new Contracts.Commands.ValidateRequest
-            {
-                Path = pipeline,
-                BaseDirectory = basePath,
-                SchemaVersion = schemaVersion,
-                VariableFiles = vars,
-                InlineVariables = inlineVars,
-                FailOnWarnings = strict,
-                AllowUnresolvedVariables = allowUnresolved,
-                OutputFormat = format switch
-                {
-                    Contracts.Configuration.OutputFormat.Json => Contracts.Commands.OutputFormat.Json,
-                    // Map unsupported request formats to Text for orchestrator
-                    Contracts.Configuration.OutputFormat.Sarif => Contracts.Commands.OutputFormat.Text,
-                    Contracts.Configuration.OutputFormat.Markdown => Contracts.Commands.OutputFormat.Text,
-                    _ => Contracts.Commands.OutputFormat.Text
-                }
-            };
-
-            var resp = await orchestrator.ValidateAsync(req, CancellationToken.None);
-            var report = reporter.GenerateReport(pipeline, resp.Details.AllErrors, resp.Details.AllWarnings, format);
-            Console.WriteLine(report.Content);
-            
-            // Add success/failure message at the end
-            Console.WriteLine();
-            if (resp.Status == Contracts.Commands.ValidationStatus.Success)
-            {
-                ConsoleHelper.WriteSuccess("Pipeline validation completed successfully!");
-            }
-            else if (resp.Status == Contracts.Commands.ValidationStatus.SuccessWithWarnings)
-            {
-                if (strict)
-                {
-                    ConsoleHelper.WriteError("✗ Pipeline validation failed (warnings treated as errors in strict mode)");
-                }
-                else
-                {
-                    ConsoleHelper.WriteWarning("⚠ Pipeline validation completed with warnings");
-                }
-            }
-            else if (resp.Status == Contracts.Commands.ValidationStatus.Failed)
-            {
-                ConsoleHelper.WriteError("✗ Pipeline validation failed");
-            }
-            
-            if (!string.IsNullOrWhiteSpace(logFile))
-            {
-                try
-                {
-                    await File.WriteAllTextAsync(logFile!, report.Content);
-                    ConsoleHelper.WriteInfo($"Report saved to: {logFile}");
-                }
-                catch (Exception ex)
-                {
-                    ConsoleHelper.WriteError($"Failed to write log file: {ex.Message}");
-                    ctx.ExitCode = 3;
-                    return;
-                }
-            }
-            var exitCode = resp.Status switch
-            {
-                Contracts.Commands.ValidationStatus.Success => 0,
-                Contracts.Commands.ValidationStatus.SuccessWithWarnings => strict ? 1 : 0,
-                Contracts.Commands.ValidationStatus.Failed => 1,
-                _ => 3
-            };
-            ctx.ExitCode = exitCode;
-        });
-
+        var validateCmd = CreateValidateCommand(serviceProvider);
         rootCommand.AddCommand(validateCmd);
-
-        rootCommand.SetHandler(() =>
-        {
-            Console.WriteLine("ADO Pipelines Local Runner");
-            Console.WriteLine("Use --help to see available commands");
-        });
 
         return rootCommand;
     }
 
+    /// <summary>
+    /// Displays root command help text.
+    /// </summary>
+    private static void DisplayRootHelp()
+    {
+        ConsoleHelper.WriteInfo("Azure DevOps Pipelines Local Runner");
+        ConsoleHelper.WriteInfo("Usage: azp-local validate [OPTIONS]");
+        Console.WriteLine("\nExamples:");
+        Console.WriteLine("  azp-local validate --pipeline azure-pipelines.yml");
+        Console.WriteLine("  azp-local validate --pipeline build.yml --base-path ./ --output json");
+        Console.WriteLine("  azp-local validate --pipeline ci.yml --var buildConfig=Release --strict");
+        Console.WriteLine("\nUse 'validate --help' to see all available options");
+    }
+
+    /// <summary>
+    /// Creates the validate command with all options and handler.
+    /// </summary>
+    private static Command CreateValidateCommand(IServiceProvider serviceProvider)
+    {
+        var validateCmd = new Command("validate", "Validate an Azure DevOps pipeline YAML file");
+        
+        // Create and add all options
+        var options = CreateValidateOptions();
+        foreach (var option in options.Values)
+        {
+            validateCmd.AddOption(option);
+        }
+
+        // Set command handler
+        validateCmd.SetHandler(async (ctx) => 
+            await HandleValidateCommandAsync(ctx, serviceProvider, options));
+
+        return validateCmd;
+    }
+
+    /// <summary>
+    /// Creates all options for the validate command.
+    /// </summary>
+    private static Dictionary<string, Option> CreateValidateOptions()
+    {
+        return new()
+        {
+            ["pipeline"] = new Option<string>(
+                name: "--pipeline", 
+                description: "Path to the pipeline YAML file to validate") 
+            { IsRequired = true },
+            
+            ["base-path"] = new Option<string?>(
+                name: "--base-path", 
+                description: "Base directory path for resolving local template references (default: current directory)"),
+            
+            ["schema-version"] = new Option<string?>(
+                name: "--schema-version", 
+                description: "Azure DevOps schema version to validate against (e.g., '2023-01'). If not specified, uses latest"),
+            
+            ["vars"] = new Option<string[]>(
+                name: "--vars", 
+                description: "Variable files to include in validation (YAML format)") 
+            { Arity = ArgumentArity.ZeroOrMore },
+            
+            ["var"] = new Option<string[]>(
+                name: "--var", 
+                description: "Inline variable in key=value format (can be used multiple times)", 
+                getDefaultValue: () => Array.Empty<string>()) 
+            { Arity = ArgumentArity.ZeroOrMore },
+            
+            ["strict"] = new Option<bool>(
+                name: "--strict", 
+                description: "Treat all warnings as errors; exit with code 1 if warnings are found"),
+            
+            ["output"] = new Option<string>(
+                name: "--output", 
+                description: "Output format: text (default)|json|sarif|markdown", 
+                getDefaultValue: () => "text"),
+            
+            ["allow-unresolved"] = new Option<bool>(
+                name: "--allow-unresolved", 
+                description: "Allow unresolved variables and report them as warnings instead of errors"),
+            
+            ["verbosity"] = new Option<string>(
+                name: "--verbosity", 
+                description: "Logging verbosity level: quiet|minimal|normal|detailed (default: normal)", 
+                getDefaultValue: () => "normal"),
+            
+            ["log-file"] = new Option<string?>(
+                name: "--log-file", 
+                description: "Optional file path to save validation report")
+        };
+    }
+
+    /// <summary>
+    /// Handles the validate command execution.
+    /// </summary>
+    private static async Task HandleValidateCommandAsync(
+        InvocationContext ctx, 
+        IServiceProvider serviceProvider,
+        Dictionary<string, Option> options)
+    {
+        var version = GetApplicationVersion();
+        ConsoleHelper.WriteHeader("Azure DevOps Pipelines Local Runner", version);
+
+        // Extract arguments from context
+        var args = ExtractValidateArguments(ctx, options);
+        
+        // Parse inline variables
+        if (!TryParseInlineVariables(args.InlineVarsRaw, args.InlineVars))
+        {
+            ConsoleHelper.WriteError("Error parsing inline variables");
+            ctx.ExitCode = 3;
+            return;
+        }
+
+        // Execute validation
+        await ExecuteValidationAsync(ctx, serviceProvider, args);
+    }
+
+    /// <summary>
+    /// Extracts and structures validate command arguments from context.
+    /// </summary>
+    private static ValidateCommandArgs ExtractValidateArguments(InvocationContext ctx, Dictionary<string, Option> options)
+    {
+        return new ValidateCommandArgs
+        {
+            Pipeline = ctx.ParseResult.GetValueForOption((Option<string>)options["pipeline"])!,
+            BasePath = ctx.ParseResult.GetValueForOption((Option<string?>)options["base-path"]),
+            SchemaVersion = ctx.ParseResult.GetValueForOption((Option<string?>)options["schema-version"]),
+            VarFiles = ctx.ParseResult.GetValueForOption((Option<string[]>)options["vars"]) ?? Array.Empty<string>(),
+            InlineVarsRaw = ctx.ParseResult.GetValueForOption((Option<string[]>)options["var"]) ?? Array.Empty<string>(),
+            Strict = ctx.ParseResult.GetValueForOption((Option<bool>)options["strict"]),
+            Output = ctx.ParseResult.GetValueForOption((Option<string>)options["output"]) ?? "text",
+            AllowUnresolved = ctx.ParseResult.GetValueForOption((Option<bool>)options["allow-unresolved"]),
+            Verbosity = ctx.ParseResult.GetValueForOption((Option<string>)options["verbosity"]) ?? "normal",
+            LogFile = ctx.ParseResult.GetValueForOption((Option<string?>)options["log-file"]),
+            InlineVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    /// <summary>
+    /// Attempts to parse inline variable arguments into key-value dictionary.
+    /// </summary>
+    private static bool TryParseInlineVariables(string[] rawVars, Dictionary<string, string> output)
+    {
+        foreach (var entry in rawVars)
+        {
+            var parts = entry.Split('=', 2);
+            if (parts.Length != 2)
+            {
+                ConsoleHelper.WriteError($"Invalid --var entry: {entry}. Expected key=value.");
+                return false;
+            }
+            output[parts[0]] = parts[1];
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Executes the validation process and displays results.
+    /// </summary>
+    private static async Task ExecuteValidationAsync(
+        InvocationContext ctx,
+        IServiceProvider serviceProvider,
+        ValidateCommandArgs args)
+    {
+        var orchestrator = serviceProvider.GetRequiredService<Core.Orchestration.IValidationOrchestrator>();
+        var reporter = serviceProvider.GetRequiredService<IErrorReporter>();
+        
+        var outputFormat = ParseOutputFormat(args.Output);
+        var request = BuildValidateRequest(args, outputFormat);
+        
+        var response = await orchestrator.ValidateAsync(request, CancellationToken.None);
+        var report = reporter.GenerateReport(args.Pipeline, response.Details.AllErrors, response.Details.AllWarnings, outputFormat);
+        
+        Console.WriteLine(report.Content);
+        Console.WriteLine();
+        
+        DisplayValidationResult(response.Status, args.Strict);
+        
+        if (!string.IsNullOrWhiteSpace(args.LogFile))
+        {
+            await TrySaveReportAsync(ctx, args.LogFile, report.Content);
+        }
+        
+        ctx.ExitCode = DetermineExitCode(response.Status, args.Strict);
+    }
+
+    /// <summary>
+    /// Gets the application version.
+    /// </summary>
+    private static string GetApplicationVersion()
+    {
+        return Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
+            ?? "1.0.0";
+    }
+
+    /// <summary>
+    /// Parses string output format to OutputFormat enum.
+    /// </summary>
+    private static ConfigOutputFormat ParseOutputFormat(string output)
+    {
+        return output.ToLowerInvariant() switch
+        {
+            "json" => ConfigOutputFormat.Json,
+            "sarif" => ConfigOutputFormat.Sarif,
+            "markdown" => ConfigOutputFormat.Markdown,
+            _ => ConfigOutputFormat.Text
+        };
+    }
+
+    /// <summary>
+    /// Builds a ValidateRequest from command arguments.
+    /// </summary>
+    private static ValidateRequest BuildValidateRequest(ValidateCommandArgs args, ConfigOutputFormat outputFormat)
+    {
+        var requestOutputFormat = outputFormat switch
+        {
+            ConfigOutputFormat.Json => CommandOutputFormat.Json,
+            _ => CommandOutputFormat.Text
+        };
+
+        return new ValidateRequest
+        {
+            Path = args.Pipeline,
+            BaseDirectory = args.BasePath,
+            SchemaVersion = args.SchemaVersion,
+            VariableFiles = args.VarFiles,
+            InlineVariables = args.InlineVars,
+            FailOnWarnings = args.Strict,
+            AllowUnresolvedVariables = args.AllowUnresolved,
+            OutputFormat = requestOutputFormat
+        };
+    }
+
+    /// <summary>
+    /// Displays validation result message.
+    /// </summary>
+    private static void DisplayValidationResult(ValidationStatus status, bool strict)
+    {
+        switch (status)
+        {
+            case ValidationStatus.Success:
+                ConsoleHelper.WriteSuccess("Pipeline validation completed successfully!");
+                break;
+                
+            case ValidationStatus.SuccessWithWarnings:
+                if (strict)
+                    ConsoleHelper.WriteError("✗ Pipeline validation failed (warnings treated as errors in strict mode)");
+                else
+                    ConsoleHelper.WriteWarning("⚠ Pipeline validation completed with warnings");
+                break;
+                
+            case ValidationStatus.Failed:
+                ConsoleHelper.WriteError("✗ Pipeline validation failed");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to save report to file.
+    /// </summary>
+    private static async Task TrySaveReportAsync(InvocationContext ctx, string logFile, string content)
+    {
+        try
+        {
+            await File.WriteAllTextAsync(logFile, content);
+            ConsoleHelper.WriteInfo($"Report saved to: {logFile}");
+        }
+        catch (Exception ex)
+        {
+            ConsoleHelper.WriteError($"Failed to write log file: {ex.Message}");
+            ctx.ExitCode = 3;
+        }
+    }
+
+    /// <summary>
+    /// Determines the exit code based on validation status.
+    /// </summary>
+    private static int DetermineExitCode(ValidationStatus status, bool strict)
+    {
+        return status switch
+        {
+            ValidationStatus.Success => 0,
+            ValidationStatus.SuccessWithWarnings => strict ? 1 : 0,
+            ValidationStatus.Failed => 1,
+            _ => 3
+        };
+    }
+
+    /// <summary>
+    /// Configures dependency injection container with all required services.
+    /// </summary>
     private static void ConfigureServices(IServiceCollection services)
     {
-        // Configure logging
         services.AddLogging(builder =>
         {
             builder.AddConsole();
-            // Map verbosity from environment variable set by handler, default to Information
             var verbosity = Environment.GetEnvironmentVariable("AZP_LOCAL_VERBOSITY") ?? "normal";
             var level = verbosity.ToLowerInvariant() switch
             {
-                "quiet" => LogLevel.Error,
-                "minimal" => LogLevel.Warning,
-                "normal" => LogLevel.Information,
-                "detailed" => LogLevel.Debug,
-                _ => LogLevel.Information
+                "quiet" => MsLogLevel.Error,
+                "minimal" => MsLogLevel.Warning,
+                "normal" => MsLogLevel.Information,
+                "detailed" => MsLogLevel.Debug,
+                _ => MsLogLevel.Information
             };
             builder.SetMinimumLevel(level);
-            // File logging not configured via logger; handler writes reports when requested.
         });
 
-        // Register services
         services.AddSingleton<IErrorReporter, ErrorReporter>();
         services.AddSingleton<Core.Orchestration.IValidationOrchestrator, Core.Orchestration.ValidationOrchestrator>();
-
-        // TODO: Register concrete implementations for parser/validator/schema/resolver/variables
         services.AddSingleton<IYamlParser, Core.Parsing.YamlParser>();
         services.AddSingleton<ISyntaxValidator, Core.Validators.SyntaxValidator>();
         services.AddSingleton<ISchemaManager, Core.Schema.SchemaManager>();
         services.AddSingleton<ITemplateResolver, Core.Templates.TemplateResolver>();
         services.AddSingleton<IVariableProcessor, Core.Variables.VariableProcessor>();
     }
+}
+
+/// <summary>
+/// Data structure for validate command arguments.
+/// </summary>
+internal class ValidateCommandArgs
+{
+    public required string Pipeline { get; set; }
+    public string? BasePath { get; set; }
+    public string? SchemaVersion { get; set; }
+    public string[] VarFiles { get; set; } = Array.Empty<string>();
+    public string[] InlineVarsRaw { get; set; } = Array.Empty<string>();
+    public bool Strict { get; set; }
+    public string Output { get; set; } = "text";
+    public bool AllowUnresolved { get; set; }
+    public string Verbosity { get; set; } = "normal";
+    public string? LogFile { get; set; }
+    public Dictionary<string, string> InlineVars { get; set; } = new();
 }
