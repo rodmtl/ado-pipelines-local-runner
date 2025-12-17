@@ -1,4 +1,5 @@
 using AdoPipelinesLocalRunner.Contracts;
+using System.Reflection;
 
 namespace AdoPipelinesLocalRunner.Core.Validators;
 
@@ -26,10 +27,10 @@ public class SyntaxValidator : ISyntaxValidator
     /// <inheritdoc />
     public void AddRule(IValidationRule rule)
     {
-        if (rule != null && !_rules.Any(r => r.Name.Equals(rule.Name, StringComparison.OrdinalIgnoreCase)))
-        {
-            _rules.Add(rule);
-        }
+        if (rule == null || _rules.Any(r => r.Name.Equals(rule.Name, StringComparison.OrdinalIgnoreCase)))
+            return;
+            
+        _rules.Add(rule);
     }
 
     /// <inheritdoc />
@@ -50,73 +51,26 @@ public class SyntaxValidator : ISyntaxValidator
         return _rules.AsReadOnly();
     }
 
+    /// <summary>
+    /// Validates a pipeline document using registered validation rules.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Orchestrates validation process without implementing specific rules.
+    /// </remarks>
     private ValidationResult ValidateInternal(PipelineDocument document)
     {
+        // Validate document exists
+        if (document == null)
+            return CreateNullDocumentError();
+
         var errors = new List<ValidationError>();
         var warnings = new List<ValidationError>();
 
-        if (document == null)
-        {
-            errors.Add(new ValidationError
-            {
-                Code = "NULL_DOCUMENT",
-                Message = "Pipeline document is null",
-                Severity = Severity.Error,
-                Location = new SourceLocation
-                {
-                    FilePath = "<unknown>",
-                    Line = 0,
-                    Column = 0
-                }
-            });
+        // Create validation context for rule execution
+        var context = CreateValidationContext(document);
 
-            return new ValidationResult
-            {
-                IsValid = false,
-                Errors = errors,
-                Warnings = new List<ValidationError>()
-            };
-        }
-
-        // Create validation context
-        var context = new ValidationContext
-        {
-            Document = document,
-            SourceMap = new DefaultSourceMap(),
-            CurrentPath = string.Empty,
-            Parent = null
-        };
-
-        // Apply all rules
-        foreach (var rule in _rules)
-        {
-            try
-            {
-                var ruleErrors = rule.Validate(document, context).ToList();
-                foreach (var error in ruleErrors)
-                {
-                    if (error.Severity == Severity.Error)
-                        errors.Add(error);
-                    else if (error.Severity == Severity.Warning)
-                        warnings.Add(error);
-                }
-            }
-            catch (Exception ex)
-            {
-                errors.Add(new ValidationError
-                {
-                    Code = "RULE_EXECUTION_ERROR",
-                    Message = $"Error executing rule {rule.Name}: {ex.Message}",
-                    Severity = Severity.Error,
-                    Location = new SourceLocation
-                    {
-                        FilePath = document.SourcePath ?? "<unknown>",
-                        Line = 0,
-                        Column = 0
-                    }
-                });
-            }
-        }
+        // Execute each rule and collect errors/warnings
+        ApplyAllRules(errors, warnings, document, context);
 
         return new ValidationResult
         {
@@ -126,6 +80,100 @@ public class SyntaxValidator : ISyntaxValidator
         };
     }
 
+    /// <summary>
+    /// Creates a validation result for null document.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Error creation for null input.
+    /// </remarks>
+    private ValidationResult CreateNullDocumentError()
+    {
+        var errors = new List<ValidationError>
+        {
+            new ValidationError
+            {
+                Code = "NULL_DOCUMENT",
+                Message = "Pipeline document is null",
+                Severity = Severity.Error,
+                Location = new SourceLocation { FilePath = "<unknown>", Line = 0, Column = 0 }
+            }
+        };
+        return new ValidationResult { IsValid = false, Errors = errors, Warnings = new List<ValidationError>() };
+    }
+
+    /// <summary>
+    /// Creates a validation context for rule execution.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Context initialization.
+    /// </remarks>
+    private ValidationContext CreateValidationContext(PipelineDocument document) =>
+        new()
+        {
+            Document = document,
+            SourceMap = new DefaultSourceMap(),
+            CurrentPath = string.Empty,
+            Parent = null
+        };
+
+    /// <summary>
+    /// Applies all registered validation rules to the document.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Rule execution orchestration with error handling.
+    /// </remarks>
+    private void ApplyAllRules(List<ValidationError> errors, List<ValidationError> warnings, 
+        PipelineDocument document, ValidationContext context)
+    {
+        foreach (var rule in _rules)
+        {
+            ExecuteRule(rule, document, context, errors, warnings);
+        }
+    }
+
+    /// <summary>
+    /// Executes a single validation rule with error handling.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Execute one rule and categorize results.
+    /// </remarks>
+    private void ExecuteRule(IValidationRule rule, PipelineDocument document, ValidationContext context,
+        List<ValidationError> errors, List<ValidationError> warnings)
+    {
+        try
+        {
+            var ruleErrors = rule.Validate(document, context).ToList();
+            foreach (var error in ruleErrors)
+            {
+                if (error.Severity == Severity.Error)
+                    errors.Add(error);
+                else if (error.Severity == Severity.Warning)
+                    warnings.Add(error);
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add(new ValidationError
+            {
+                Code = "RULE_EXECUTION_ERROR",
+                Message = $"Error executing rule {rule.Name}: {ex.Message}",
+                Severity = Severity.Error,
+                Location = new SourceLocation
+                {
+                    FilePath = document.SourcePath ?? "<unknown>",
+                    Line = 0,
+                    Column = 0
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Registers all built-in validation rules.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Initialize rules collection.
+    /// </remarks>
     private void RegisterBuiltInRules()
     {
         _rules.Add(new NoConflictingStructureRule());
@@ -294,39 +342,73 @@ internal class MissingTriggerRule : IValidationRule
 }
 
 /// <summary>
-/// Helper static methods for validation.
+/// Helper static methods for validation operations.
+/// Provides reusable validation utilities following Single Responsibility.
 /// </summary>
 internal static class ValidationHelpers
 {
     /// <summary>
-    /// Check if an object has a property with a given name.
+    /// Checks if an object has a non-null property or dictionary key.
+    /// Handles both reflection-based properties and dictionary-based access.
     /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Property existence check.
+    /// </remarks>
     public static bool HasProperty(object obj, string propertyName)
     {
+        if (obj == null)
+            return false;
+
         try
         {
-            var type = obj?.GetType();
-            if (type == null) return false;
-            
-            var property = type.GetProperty(propertyName, System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-            if (property != null)
-            {
-                var value = property.GetValue(obj);
-                return value != null;
-            }
-            
-            // Try as dictionary
+            // Try reflection-based property access
+            if (TryGetPropertyValue(obj, propertyName, out _))
+                return true;
+
+            // Try dictionary-based access
             if (obj is System.Collections.IDictionary dict)
-            {
-                return dict.Keys.Cast<object>().Any(k => k?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) == true);
-            }
-            
+                return DictionaryHasKey(dict, propertyName);
+
             return false;
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Attempts to get a property value using reflection.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Reflection-based property retrieval.
+    /// </remarks>
+    private static bool TryGetPropertyValue(object obj, string propertyName, out object? value)
+    {
+        value = null;
+        var type = obj.GetType();
+        var property = type.GetProperty(propertyName, 
+            BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+        
+        if (property != null)
+        {
+            value = property.GetValue(obj);
+            return value != null;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a dictionary contains a key (case-insensitive).
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Dictionary key checking.
+    /// </remarks>
+    private static bool DictionaryHasKey(System.Collections.IDictionary dict, string key)
+    {
+        return dict.Keys.Cast<object>()
+            .Any(k => k?.ToString()?.Equals(key, StringComparison.OrdinalIgnoreCase) == true);
     }
 }
 

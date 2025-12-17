@@ -7,6 +7,7 @@ namespace AdoPipelinesLocalRunner.Core.Variables;
 /// Implementation of IVariableProcessor.
 /// Processes and resolves pipeline variables and expressions.
 /// Supports $(var) and ${{ variables.var }} syntax.
+/// Follows Single Responsibility with separate validation, resolution, and extraction concerns.
 /// </summary>
 public class VariableProcessor : IVariableProcessor
 {
@@ -32,25 +33,24 @@ public class VariableProcessor : IVariableProcessor
             return expression;
 
         var varName = match.Groups[1].Value ?? match.Groups[2].Value;
+        return TryResolveVariable(varName, context, expression);
+    }
 
-        // Try to resolve from various contexts
-        if (context.SystemVariables?.TryGetValue(varName, out var sysValue) == true)
-            return sysValue?.ToString() ?? expression;
+    /// <summary>
+    /// Attempts to resolve a variable from any available context.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Variable resolution logic with precedence handling.
+    /// </remarks>
+    private string TryResolveVariable(string varName, VariableContext context, string fallback)
+    {
+        if (TryGetFromContext(varName, context, out var value))
+            return value?.ToString() ?? fallback;
 
-        if (context.PipelineVariables?.TryGetValue(varName, out var pipeValue) == true)
-            return pipeValue?.ToString() ?? expression;
-
-        if (context.EnvironmentVariables?.TryGetValue(varName, out var envValue) == true)
-            return envValue?.ToString() ?? expression;
-
-        if (context.Parameters?.TryGetValue(varName, out var paramValue) == true)
-            return paramValue?.ToString() ?? expression;
-
-        // Variable not found
         if (context.FailOnUnresolved)
             throw new InvalidOperationException($"Variable '{varName}' is not defined");
 
-        return expression; // Return original if unresolved and allowed
+        return fallback;
     }
 
     /// <inheritdoc />
@@ -59,29 +59,40 @@ public class VariableProcessor : IVariableProcessor
         if (string.IsNullOrEmpty(text))
             return text;
 
-        return VariableRegex.Replace(text, match =>
-        {
-            var varName = match.Groups[1].Value ?? match.Groups[2].Value;
+        return VariableRegex.Replace(text, match => ResolveMatch(match, context));
+    }
 
-            // Try each context in order of precedence
-            if (context.SystemVariables?.TryGetValue(varName, out var sysValue) == true)
-                return sysValue?.ToString() ?? match.Value;
+    /// <summary>
+    /// Resolves a single regex match to a variable value.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Match resolution logic.
+    /// </remarks>
+    private string ResolveMatch(Match match, VariableContext context)
+    {
+        var varName = match.Groups[1].Value ?? match.Groups[2].Value;
+        if (TryGetFromContext(varName, context, out var value))
+            return value?.ToString() ?? match.Value;
 
-            if (context.PipelineVariables?.TryGetValue(varName, out var pipeValue) == true)
-                return pipeValue?.ToString() ?? match.Value;
+        if (context.FailOnUnresolved)
+            throw new InvalidOperationException($"Variable '{varName}' is not defined");
 
-            if (context.EnvironmentVariables?.TryGetValue(varName, out var envValue) == true)
-                return envValue?.ToString() ?? match.Value;
+        return match.Value;
+    }
 
-            if (context.Parameters?.TryGetValue(varName, out var paramValue) == true)
-                return paramValue?.ToString() ?? match.Value;
-
-            // Not found - return original or throw based on context
-            if (context.FailOnUnresolved)
-                throw new InvalidOperationException($"Variable '{varName}' is not defined");
-
-            return match.Value; // Return original expression
-        });
+    /// <summary>
+    /// Attempts to retrieve a variable from any available context source.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Context searching with defined precedence.
+    /// </remarks>
+    private bool TryGetFromContext(string varName, VariableContext context, out object? value)
+    {
+        value = null;
+        return context.SystemVariables?.TryGetValue(varName, out value) == true ||
+               context.PipelineVariables?.TryGetValue(varName, out value) == true ||
+               context.EnvironmentVariables?.TryGetValue(varName, out value) == true ||
+               context.Parameters?.TryGetValue(varName, out value) == true;
     }
 
     /// <inheritdoc />
@@ -92,41 +103,10 @@ public class VariableProcessor : IVariableProcessor
 
         try
         {
-            // Scan document for variable references
             var varReferences = ExtractVariableReferences(document);
+            ValidateVariableReferences(varReferences, document, context, errors, warnings);
 
-            foreach (var varRef in varReferences)
-            {
-                var found = IsVariableDefined(varRef, context);
-                if (!found)
-                {
-                    var issue = new ValidationError
-                    {
-                        Code = "UNDEFINED_VARIABLE",
-                        Message = $"Variable '{varRef}' is not defined",
-                        Severity = context.FailOnUnresolved ? Severity.Error : Severity.Warning,
-                        Location = new SourceLocation
-                        {
-                            FilePath = document?.SourcePath ?? "<unknown>",
-                            Line = 0,
-                            Column = 0
-                        },
-                        Suggestion = $"Define variable '{varRef}' in variables section or via --var parameter"
-                    };
-
-                    if (context.FailOnUnresolved)
-                        errors.Add(issue);
-                    else
-                        warnings.Add(issue);
-                }
-            }
-
-            return new ValidationResult
-            {
-                IsValid = errors.Count == 0,
-                Errors = errors,
-                Warnings = warnings
-            };
+            return new ValidationResult { IsValid = errors.Count == 0, Errors = errors, Warnings = warnings };
         }
         catch (Exception ex)
         {
@@ -135,23 +115,49 @@ public class VariableProcessor : IVariableProcessor
                 Code = "VARIABLE_VALIDATION_ERROR",
                 Message = $"Error validating variables: {ex.Message}",
                 Severity = Severity.Error,
-                Location = new SourceLocation
-                {
-                    FilePath = document?.SourcePath ?? "<unknown>",
-                    Line = 0,
-                    Column = 0
-                }
+                Location = new SourceLocation { FilePath = document?.SourcePath ?? "<unknown>", Line = 0, Column = 0 }
             });
-
-            return new ValidationResult
-            {
-                IsValid = false,
-                Errors = errors,
-                Warnings = warnings
-            };
+            return new ValidationResult { IsValid = false, Errors = errors, Warnings = warnings };
         }
     }
 
+    /// <summary>
+    /// Validates that all variable references are defined in the context.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Variable reference validation.
+    /// </remarks>
+    private void ValidateVariableReferences(HashSet<string> varReferences, PipelineDocument document, 
+        VariableContext context, List<ValidationError> errors, List<ValidationError> warnings)
+    {
+        foreach (var varRef in varReferences)
+        {
+            if (!IsVariableDefined(varRef, context))
+            {
+                var issue = new ValidationError
+                {
+                    Code = "UNDEFINED_VARIABLE",
+                    Message = $"Variable '{varRef}' is not defined",
+                    Severity = context.FailOnUnresolved ? Severity.Error : Severity.Warning,
+                    Location = new SourceLocation { FilePath = document?.SourcePath ?? "<unknown>", Line = 0, Column = 0 },
+                    Suggestion = $"Define variable '{varRef}' in variables section or via --var parameter"
+                };
+
+                if (context.FailOnUnresolved)
+                    errors.Add(issue);
+                else
+                    warnings.Add(issue);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Processes pipeline variables through multiple validation and expansion stages.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Variable processing orchestration.
+    /// Coordinates extraction, validation, and expansion steps.
+    /// </remarks>
     private VariableProcessingResult ProcessInternal(PipelineDocument document, VariableContext context)
     {
         var errors = new List<ValidationError>();
@@ -159,73 +165,21 @@ public class VariableProcessor : IVariableProcessor
 
         try
         {
-            // Extract variables defined in the document itself (pipeline-level and job-level)
             var documentDefinedVars = ExtractDefinedVariables(document);
+            var contextWithDocumentVars = MergeContexts(context, documentDefinedVars);
 
-            // Create context with document variables merged in
-            var contextWithDocumentVars = new VariableContext
-            {
-                SystemVariables = context.SystemVariables,
-                PipelineVariables = MergeDictionaries(context.PipelineVariables, documentDefinedVars),
-                EnvironmentVariables = context.EnvironmentVariables,
-                Parameters = context.Parameters,
-                VariableGroups = context.VariableGroups,
-                FailOnUnresolved = context.FailOnUnresolved,
-                Scope = context.Scope
-            };
-
-            // In Phase 1, basic variable validation
             var varValidation = ValidateVariables(document, contextWithDocumentVars);
             errors.AddRange(varValidation.Errors);
 
-            // Track resolved variables from provided context (pipeline/inline) for reporting
-            if (contextWithDocumentVars.PipelineVariables != null)
-            {
-                foreach (var kvp in contextWithDocumentVars.PipelineVariables)
-                {
-                    resolvedVars.Add(new ResolvedVariable
-                    {
-                        Name = kvp.Key,
-                        Value = kvp.Value,
-                        Source = "pipeline",
-                        Scope = context.Scope,
-                        IsSecret = false
-                    });
-                }
-            }
+            CollectResolvedVariables(contextWithDocumentVars, resolvedVars);
+            var newContent = TryExpandVariables(document, contextWithDocumentVars, errors);
 
-            // Expand variables in raw content if available
-            string? newContent = document.RawContent;
-            if (!string.IsNullOrEmpty(document.RawContent))
-            {
-                try
-                {
-                    newContent = ExpandVariables(document.RawContent!, contextWithDocumentVars);
-                }
-                catch (Exception ex)
-                {
-                    errors.Add(new ValidationError
-                    {
-                        Code = "VARIABLE_EXPANSION_ERROR",
-                        Message = ex.Message,
-                        Severity = Severity.Error,
-                        Location = new SourceLocation
-                        {
-                            FilePath = document.SourcePath ?? "<unknown>",
-                            Line = 0,
-                            Column = 0
-                        }
-                    });
-                }
-            }
-
-            var resolvedVarsDict = resolvedVars.ToDictionary(v => v.Name);
             return new VariableProcessingResult
             {
                 Success = errors.Count == 0,
                 ProcessedDocument = string.IsNullOrEmpty(document.RawContent) ? document : document with { RawContent = newContent },
                 Errors = errors,
-                ResolvedVariables = resolvedVarsDict
+                ResolvedVariables = resolvedVars.ToDictionary(v => v.Name)
             };
         }
         catch (Exception ex)
@@ -235,43 +189,119 @@ public class VariableProcessor : IVariableProcessor
                 Code = "VARIABLE_PROCESSING_ERROR",
                 Message = $"Error processing variables: {ex.Message}",
                 Severity = Severity.Error,
-                Location = new SourceLocation
-                {
-                    FilePath = document?.SourcePath ?? "<unknown>",
-                    Line = 0,
-                    Column = 0
-                }
+                Location = new SourceLocation { FilePath = document?.SourcePath ?? "<unknown>", Line = 0, Column = 0 }
             });
-
-            var resolvedVarsDict = resolvedVars.ToDictionary(v => v.Name);
             return new VariableProcessingResult
             {
                 Success = false,
                 ProcessedDocument = document,
                 Errors = errors,
-                ResolvedVariables = resolvedVarsDict
+                ResolvedVariables = resolvedVars.ToDictionary(v => v.Name)
             };
         }
     }
 
+    /// <summary>
+    /// Merges document-defined variables with the provided context.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Context merging.
+    /// </remarks>
+    private VariableContext MergeContexts(VariableContext context, Dictionary<string, object> documentDefinedVars)
+    {
+        return new VariableContext
+        {
+            SystemVariables = context.SystemVariables,
+            PipelineVariables = MergeDictionaries(context.PipelineVariables, documentDefinedVars),
+            EnvironmentVariables = context.EnvironmentVariables,
+            Parameters = context.Parameters,
+            VariableGroups = context.VariableGroups,
+            FailOnUnresolved = context.FailOnUnresolved,
+            Scope = context.Scope
+        };
+    }
+
+    /// <summary>
+    /// Collects resolved variables for reporting.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Variable collection for output.
+    /// </remarks>
+    private void CollectResolvedVariables(VariableContext context, List<ResolvedVariable> resolvedVars)
+    {
+        if (context.PipelineVariables == null)
+            return;
+
+        foreach (var kvp in context.PipelineVariables)
+        {
+            resolvedVars.Add(new ResolvedVariable
+            {
+                Name = kvp.Key,
+                Value = kvp.Value,
+                Source = "pipeline",
+                Scope = context.Scope,
+                IsSecret = false
+            });
+        }
+    }
+
+    /// <summary>
+    /// Attempts to expand variables in document content.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Variable expansion with error handling.
+    /// </remarks>
+    private string TryExpandVariables(PipelineDocument document, VariableContext context, List<ValidationError> errors)
+    {
+        if (string.IsNullOrEmpty(document.RawContent))
+            return string.Empty;
+
+        try
+        {
+            return ExpandVariables(document.RawContent, context);
+        }
+        catch (Exception ex)
+        {
+            errors.Add(new ValidationError
+            {
+                Code = "VARIABLE_EXPANSION_ERROR",
+                Message = ex.Message,
+                Severity = Severity.Error,
+                Location = new SourceLocation { FilePath = document.SourcePath ?? "<unknown>", Line = 0, Column = 0 }
+            });
+            return document.RawContent;
+        }
+    }
+
+    /// <summary>
+    /// Extracts all variable references found in the document.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Variable reference extraction.
+    /// </remarks>
     private HashSet<string> ExtractVariableReferences(PipelineDocument document)
     {
         var refs = new HashSet<string>();
+        if (document?.RawContent == null)
+            return refs;
 
-        if (document?.RawContent != null)
+        var matches = VariableRegex.Matches(document.RawContent);
+        foreach (Match match in matches)
         {
-            var matches = VariableRegex.Matches(document.RawContent);
-            foreach (Match match in matches)
-            {
-                var varName = match.Groups[1].Value ?? match.Groups[2].Value;
-                if (!string.IsNullOrEmpty(varName))
-                    refs.Add(varName);
-            }
+            var varName = match.Groups[1].Value ?? match.Groups[2].Value;
+            if (!string.IsNullOrEmpty(varName))
+                refs.Add(varName);
         }
 
         return refs;
     }
 
+    /// <summary>
+    /// Checks if a variable is defined in the provided context.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Variable definition checking.
+    /// </remarks>
     private bool IsVariableDefined(string varName, VariableContext context)
     {
         return context.SystemVariables?.ContainsKey(varName) == true ||
@@ -280,73 +310,74 @@ public class VariableProcessor : IVariableProcessor
                context.Parameters?.ContainsKey(varName) == true;
     }
 
+    /// <summary>
+    /// Extracts variable definitions from the YAML document itself.
+    /// Parses pipeline-level and job-level variable sections.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: YAML variable extraction.
+    /// </remarks>
     private Dictionary<string, object> ExtractDefinedVariables(PipelineDocument document)
     {
         var vars = new Dictionary<string, object>();
-
         if (string.IsNullOrEmpty(document?.RawContent))
             return vars;
-
-        // Strategy: Find all 'variables:' sections and extract the key-value pairs following them
-        // Look for patterns like:
-        //   variables:
-        //     key: value
-        // This works for both pipeline-level and job-level variables
 
         var lines = document.RawContent.Split('\n');
         for (int i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
-            
-            // Check if this line contains 'variables:'
             var variablesMatch = Regex.Match(line, @"^(\s*)variables\s*:\s*$");
+            
             if (variablesMatch.Success)
             {
-                var baseIndent = variablesMatch.Groups[1].Value.Length;
-                var expectedIndent = baseIndent + 2; // Variables should be indented 2 more spaces
-                
-                // Now read the following lines that have the correct indentation
-                for (int j = i + 1; j < lines.Length; j++)
-                {
-                    var varLine = lines[j];
-                    
-                    // Skip empty lines
-                    if (string.IsNullOrWhiteSpace(varLine))
-                        continue;
-                    
-                    // Check if this line has the expected indentation for a variable
-                    var varMatch = Regex.Match(varLine, @"^(\s*)(\w[\w-]*)\s*:\s*(.*)$");
-                    if (varMatch.Success)
-                    {
-                        var indent = varMatch.Groups[1].Value.Length;
-                        
-                        // If indent is less than expected, we've moved out of the variables section
-                        if (indent < expectedIndent)
-                            break;
-                        
-                        // If indent matches, this is a variable definition
-                        if (indent == expectedIndent)
-                        {
-                            var varName = varMatch.Groups[2].Value.Trim();
-                            var varValue = varMatch.Groups[3].Value.Trim();
-                            if (!string.IsNullOrEmpty(varName))
-                            {
-                                vars[varName] = varValue;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Line doesn't match variable pattern, might be end of variables section
-                        break;
-                    }
-                }
+                ExtractVariablesFromSection(lines, i, variablesMatch.Groups[1].Value.Length, vars);
             }
         }
 
         return vars;
     }
 
+    /// <summary>
+    /// Extracts variables from a variables: section in YAML.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Single variables section extraction.
+    /// </remarks>
+    private void ExtractVariablesFromSection(string[] lines, int startIndex, int baseIndent, Dictionary<string, object> vars)
+    {
+        var expectedIndent = baseIndent + 2;
+
+        for (int j = startIndex + 1; j < lines.Length; j++)
+        {
+            var varLine = lines[j];
+            if (string.IsNullOrWhiteSpace(varLine))
+                continue;
+
+            var varMatch = Regex.Match(varLine, @"^(\s*)(\w[\w-]*)\s*:\s*(.*)$");
+            if (!varMatch.Success)
+                break;
+
+            var indent = varMatch.Groups[1].Value.Length;
+            if (indent < expectedIndent)
+                break;
+
+            if (indent == expectedIndent)
+            {
+                var varName = varMatch.Groups[2].Value.Trim();
+                var varValue = varMatch.Groups[3].Value.Trim();
+                if (!string.IsNullOrEmpty(varName))
+                    vars[varName] = varValue;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Merges two dictionaries with dict2 values taking precedence.
+    /// </summary>
+    /// <remarks>
+    /// Single Responsibility: Dictionary merging utility.
+    /// </remarks>
     private Dictionary<string, object> MergeDictionaries(IReadOnlyDictionary<string, object>? dict1, Dictionary<string, object> dict2)
     {
         var result = new Dictionary<string, object>(dict1 ?? new Dictionary<string, object>());
