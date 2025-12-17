@@ -3,8 +3,6 @@ using AdoPipelinesLocalRunner.Contracts.Commands;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using System.IO;
-using System.Linq;
 
 namespace AdoPipelinesLocalRunner.Core.Orchestration;
 
