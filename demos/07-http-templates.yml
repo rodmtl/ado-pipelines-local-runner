@@ -1,0 +1,25 @@
+# Demo: HTTP Template Resolution with Caching and Retry
+# FR3 demonstration of remote template fetching with intelligent caching
+
+name: fr3-http-templates
+
+trigger:
+  - main
+
+variables:
+  - name: buildNumber
+    value: $(Build.BuildNumber)
+
+stages:
+  - stage: Build
+    jobs:
+      - job: BuildWithRemoteTemplate
+        displayName: Build using HTTP template
+        steps:
+          # In a real scenario, these would fetch from actual HTTP URLs
+          # template: https://example.com/templates/build-steps.yml
+          # template: https://example.com/templates/test-steps.yml
+          - script: echo "Build step template would be resolved here"
+          - script: echo "Templates are cached for 1 hour by default"
+          - script: echo "Transient errors (5xx) trigger exponential backoff retry"
+          - script: echo "Max 3 retries: 100ms, 400ms, 1600ms delays"

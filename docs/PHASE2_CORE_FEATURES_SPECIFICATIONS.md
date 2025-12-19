@@ -43,7 +43,7 @@ Phase 2 builds upon the Phase 1 MVP foundation to deliver advanced features for 
 ### Success Metrics
 
 | Metric | Target |
-|--------|--------|
+|---|---|
 | Variable Resolution Accuracy | 100% scope compliance |
 | HTTP Template Cache Hit Rate | 95%+ |
 | Circular Dependency Detection | 100% of cycles |
@@ -66,6 +66,7 @@ Phase 2 builds upon the Phase 1 MVP foundation to deliver advanced features for 
 ### Scope Boundaries
 
 #### In Scope ✓
+
 - Variable file loading (YAML/JSON)
 - Hierarchical scope resolution
 - HTTP template fetching with caching
@@ -76,6 +77,7 @@ Phase 2 builds upon the Phase 1 MVP foundation to deliver advanced features for 
 - Error handling and reporting
 
 #### Out of Scope ✗
+
 - Execution simulation (Phase 3)
 - Linting rules (Phase 4)
 - GUI interface (Post-v1)
@@ -136,7 +138,7 @@ stages:
 
 **Resolution Algorithm:**
 
-```
+```text
 function ResolveVariable(name, currentScope):
   if name found in currentScope:
     return value from currentScope
@@ -543,7 +545,7 @@ azp-local expand \
 
 ### System Architecture Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                    CLI Interface                         │
 │           (expand, validate, config, etc)                │
@@ -589,7 +591,7 @@ azp-local expand \
 
 ### Component Interaction Flow
 
-```
+```text
 User Input (CLI)
     ↓
 Configuration Manager
@@ -633,6 +635,7 @@ Output
 **Purpose:** Manage variable loading, scoping, and substitution.
 
 **Responsibilities:**
+
 - Load variables from files (YAML/JSON)
 - Build and maintain scope hierarchy
 - Resolve variables using scope precedence
@@ -724,6 +727,7 @@ public record VariableCollision
 **Purpose:** Resolve template references (local and HTTP) with intelligent caching.
 
 **Responsibilities:**
+
 - Identify template references in YAML
 - Load templates from local files or HTTP URLs
 - Validate ETag and Last-Modified headers
@@ -797,6 +801,7 @@ public enum TemplateCacheStatus
 **Purpose:** Identify circular dependencies in variables and templates.
 
 **Responsibilities:**
+
 - Build dependency graph
 - Detect cycles using DFS algorithm
 - Report cycle path and affected nodes
@@ -854,6 +859,7 @@ public record DetectedCycle
 **Purpose:** Identify variable name conflicts across scopes.
 
 **Responsibilities:**
+
 - Compare variable names across scope levels
 - Report collision details
 - Suggest remediation
@@ -902,6 +908,7 @@ public enum CollisionSeverity
 **Purpose:** Load and manage configuration from files and CLI.
 
 **Responsibilities:**
+
 - Parse `azp-local.config.yaml`
 - Merge CLI arguments with configuration
 - Validate configuration structure
@@ -954,6 +961,7 @@ public record ConfigurationSettings
 **Purpose:** Simulate Azure DevOps services for local execution context.
 
 **Responsibilities:**
+
 - Load mock service configurations
 - Provide mock variable groups
 - Inject mocked services into variable resolution
@@ -1027,11 +1035,13 @@ public VariableResolutionResult ResolveVariable(
 ```
 
 **Preconditions:**
+
 - `name` is not null or empty
 - `currentScope` is valid enum value
 - `context` can be null (treated as empty)
 
 **Postconditions:**
+
 - Returns `VariableResolutionResult` object
 - If found, `Found` is true and `Value` contains resolved value
 - If not found, `Found` is false
@@ -1061,7 +1071,7 @@ if (result.Found)
 
 ### Variable Scope Hierarchy
 
-```
+```text
 ┌─────────────────────────────────────┐
 │  Global Scope                       │
 │  ├─ var1: "global-value"            │
@@ -1099,7 +1109,7 @@ if (result.Found)
 
 ### Resolution Example
 
-```
+```text
 In Step context, resolving "var1":
   Check Step scope → Not found
   Check Job scope → Found "job-override"
@@ -1119,7 +1129,7 @@ In Step context, resolving "var6":
 
 ### Test Structure
 
-```
+```text
 tests/
 ├── Unit/
 │   ├── Processor/
@@ -1683,12 +1693,14 @@ Scenario: Expand with multiple variable files
 **Impact:** Users experience slow validation
 
 **Mitigation:**
+
 - Implement caching at multiple levels
 - Use async/await for I/O operations
 - Set max depth limits (20 levels for templates)
 - Profile regularly with benchmark suite
 
 **Contingency:**
+
 - Provide "fast mode" that skips deep analysis
 - Report bottlenecks to user
 
@@ -1703,12 +1715,14 @@ Scenario: Expand with multiple variable files
 **Impact:** Validation hangs indefinitely
 
 **Mitigation:**
+
 - Set 30-second timeout per HTTP request
 - Implement circuit breaker after 3 failures
 - Use --offline mode for air-gapped environments
 - Cache templates aggressively
 
 **Contingency:**
+
 - Fallback to last known good version
 - Clearly indicate timeout vs. network error
 
@@ -1723,12 +1737,14 @@ Scenario: Expand with multiple variable files
 **Impact:** Users unclear which value is used
 
 **Mitigation:**
+
 - Report collisions with explicit precedence
 - Warn by default on collision
 - Provide --fail-on-collision flag
 - Include line numbers and file paths
 
 **Contingency:**
+
 - Suggest renaming to avoid confusion
 
 ---
@@ -1755,6 +1771,7 @@ Scenario: Expand with multiple variable files
    - Configure logging
 
 **Deliverables:**
+
 - IVariableProcessor implementation
 - 80+ passing unit tests
 - Technical spike on performance
@@ -1781,6 +1798,7 @@ Scenario: Expand with multiple variable files
    - Cache invalidation
 
 **Deliverables:**
+
 - ITemplateResolver implementation
 - ITemplateLoader interface with 2 implementations
 - 60+ passing tests
@@ -1810,6 +1828,7 @@ Scenario: Expand with multiple variable files
    - Unit tests (15+ cases)
 
 **Deliverables:**
+
 - ICircularReferenceDetector implementation
 - IConfigurationManager implementation
 - IMockServicesProvider implementation
@@ -1838,6 +1857,7 @@ Scenario: Expand with multiple variable files
    - Code review preparation
 
 **Deliverables:**
+
 - Expand command implementation
 - 30+ integration tests
 - All code reviewed and approved
@@ -1886,4 +1906,3 @@ Phase 2 builds critical infrastructure for variable and template management, est
 3. Begin Sprint 3 implementation
 4. Establish daily stand-ups
 5. Schedule code reviews
-

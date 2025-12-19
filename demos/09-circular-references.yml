@@ -1,0 +1,27 @@
+# Demo: Circular Reference Detection
+# FR6 demonstration of detecting circular variable and template dependencies
+
+name: fr6-circular-reference-detection
+
+variables:
+  - name: varA
+    value: $(varB)  # Cycle: A -> B
+  - name: varB
+    value: $(varC)  # B -> C
+  - name: varC
+    value: $(varA)  # C -> A (completes cycle)
+  - name: independent
+    value: standalone-value
+
+stages:
+  - stage: Build
+    jobs:
+      - job: BuildJob
+        steps:
+          # When validation encounters circular references,
+          # it reports the cycle path: [varA, varB, varC, varA]
+          - script: echo "Circular references are detected during variable analysis"
+          - script: echo "Prevents infinite loops and stack overflow"
+          
+          # Also detects direct cycles (A -> A)
+          - script: echo "Direct self-references are caught immediately"

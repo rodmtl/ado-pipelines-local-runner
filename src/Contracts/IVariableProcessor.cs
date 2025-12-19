@@ -78,6 +78,21 @@ public record VariableContext
     public VariableScope Scope { get; init; } = VariableScope.Pipeline;
 
     /// <summary>
+    /// Stage-level variables available in the current stage context.
+    /// </summary>
+    public IReadOnlyDictionary<string, object>? StageVariables { get; init; }
+
+    /// <summary>
+    /// Job-level variables available in the current job context.
+    /// </summary>
+    public IReadOnlyDictionary<string, object>? JobVariables { get; init; }
+
+    /// <summary>
+    /// Step-level variables available in the current step context.
+    /// </summary>
+    public IReadOnlyDictionary<string, object>? StepVariables { get; init; }
+
+    /// <summary>
     /// Whether to fail on unresolved variables.
     /// </summary>
     public bool FailOnUnresolved { get; init; } = true;

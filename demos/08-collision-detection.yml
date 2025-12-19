@@ -1,0 +1,37 @@
+# Demo: Variable Collision Detection
+# FR5 demonstration of detecting and reporting variable name conflicts
+
+name: fr5-collision-detection
+
+variables:
+  - name: buildNumber
+    value: $(Build.BuildNumber)
+  - name: shared
+    value: global-value
+
+stages:
+  - stage: Build
+    variables:
+      - name: shared
+        value: stage-value  # Collision: same name as global
+      - name: buildConfig
+        value: Release
+    jobs:
+      - job: CompileJob
+        variables:
+          - name: shared
+            value: job-value  # Another collision: same name
+          - name: sourceDir
+            value: src
+        steps:
+          - script: echo "Collision detection identifies same variable across scopes"
+          - script: echo "Warnings are issued for collisions with location tracking"
+
+  - stage: Deploy
+    variables:
+      - name: shared
+        value: deploy-value  # Collision in different stage
+    jobs:
+      - job: DeployJob
+        steps:
+          - script: echo "Variable collisions are tracked and reported"

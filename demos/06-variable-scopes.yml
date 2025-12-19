@@ -1,0 +1,33 @@
+# Demo: Hierarchical Variable Scoping
+# FR1 demonstration of Global (Pipeline), Stage, Job and Step precedence
+
+name: fr1-variable-scopes
+
+variables:
+  - name: shared
+    value: pipeline
+  - name: onlyGlobal
+    value: global-only
+
+stages:
+  - stage: Build
+    variables:
+      - name: shared
+        value: stage
+      - name: onlyStage
+        value: stage-only
+    jobs:
+      - job: BuildJob
+        variables:
+          - name: shared
+            value: job
+          - name: onlyJob
+            value: job-only
+        steps:
+          - script: echo shared=$(shared) # expected: job
+          - script: echo onlyJob=$(onlyJob) # expected: job-only
+          - script: echo onlyStage=$(onlyStage) # expected: stage-only
+          - script: echo onlyGlobal=$(onlyGlobal) # expected: global-only
+          - script: |
+              stepVar=step-only # illustrative; not real YAML variable
+              echo "stepVar is only in this step"

@@ -89,10 +89,40 @@ public class VariableProcessor : IVariableProcessor
     private bool TryGetFromContext(string varName, VariableContext context, out object? value)
     {
         value = null;
-        return context.SystemVariables?.TryGetValue(varName, out value) == true ||
-               context.PipelineVariables?.TryGetValue(varName, out value) == true ||
-               context.EnvironmentVariables?.TryGetValue(varName, out value) == true ||
-               context.Parameters?.TryGetValue(varName, out value) == true;
+
+        // Preserve existing precedence where SystemVariables take priority
+        if (context.SystemVariables?.TryGetValue(varName, out value) == true)
+            return true;
+
+        // Scope-aware precedence: innermost to outermost within pipeline-defined variables
+        switch (context.Scope)
+        {
+            case VariableScope.Step:
+                if (context.StepVariables?.TryGetValue(varName, out value) == true) return true;
+                if (context.JobVariables?.TryGetValue(varName, out value) == true) return true;
+                if (context.StageVariables?.TryGetValue(varName, out value) == true) return true;
+                if (context.PipelineVariables?.TryGetValue(varName, out value) == true) return true;
+                break;
+            case VariableScope.Job:
+                if (context.JobVariables?.TryGetValue(varName, out value) == true) return true;
+                if (context.StageVariables?.TryGetValue(varName, out value) == true) return true;
+                if (context.PipelineVariables?.TryGetValue(varName, out value) == true) return true;
+                break;
+            case VariableScope.Stage:
+                if (context.StageVariables?.TryGetValue(varName, out value) == true) return true;
+                if (context.PipelineVariables?.TryGetValue(varName, out value) == true) return true;
+                break;
+            case VariableScope.Pipeline:
+            default:
+                if (context.PipelineVariables?.TryGetValue(varName, out value) == true) return true;
+                break;
+        }
+
+        // Other sources
+        if (context.EnvironmentVariables?.TryGetValue(varName, out value) == true) return true;
+        if (context.Parameters?.TryGetValue(varName, out value) == true) return true;
+
+        return false;
     }
 
     /// <inheritdoc />

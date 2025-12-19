@@ -34,8 +34,12 @@ public class ValidationOrchestrator : IValidationOrchestrator
         {
             var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
-            // Load variables from files
-            LoadVariablesFromFiles(files, baseDir, result, errors);
+            // Load variables from files (YAML/JSON)
+            var loader = new AdoPipelinesLocalRunner.Core.Variables.VariableFileLoader();
+            foreach (var kv in loader.Load(files, baseDir, errors))
+            {
+                result[kv.Key] = kv.Value;
+            }
 
             // Merge inline variables
             MergeInlineVariables(inline, result);
@@ -49,6 +53,7 @@ public class ValidationOrchestrator : IValidationOrchestrator
         /// <remarks>
         /// Single Responsibility: Handles only file loading logic, separated from inline variable handling.
         /// </remarks>
+        // Legacy YAML-only loader retained for backward compatibility (unused by new flow)
         private void LoadVariablesFromFiles(IEnumerable<string> files, string? baseDir, Dictionary<string, object> result, List<ValidationError> errors)
         {
             var deserializer = CreateYamlDeserializer();
@@ -102,8 +107,16 @@ public class ValidationOrchestrator : IValidationOrchestrator
             try
             {
                 var content = File.ReadAllText(path);
-                var parsed = deserializer.Deserialize<Dictionary<string, object>>(content) ?? new Dictionary<string, object>();
-                MergeVariableDictionary(parsed, result);
+                var ext = Path.GetExtension(path).ToLowerInvariant();
+                if (ext == ".json")
+                {
+                    MergeVariableDictionary(ParseJsonVariables(content), result);
+                }
+                else
+                {
+                    var parsed = deserializer.Deserialize<object?>(content);
+                    MergeVariableDictionary(ParseYamlVariables(parsed), result);
+                }
                 return true;
             }
             catch (Exception ex)
@@ -111,6 +124,105 @@ public class ValidationOrchestrator : IValidationOrchestrator
                 errors.Add(CreateVariableFileInvalidError(path, ex));
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Parses a YAML object that may be a simple dictionary or have a variables: [ {name,value} ] structure.
+        /// </summary>
+        private Dictionary<string, object> ParseYamlVariables(object? yamlObject)
+        {
+            var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            if (yamlObject is null)
+                return result;
+
+            if (yamlObject is Dictionary<object, object> dict)
+            {
+                // If it's a flat dictionary, copy keys; else, look for "variables" list
+                if (dict.TryGetValue("variables", out var varsNode) && varsNode is IEnumerable<object> list)
+                {
+                    foreach (var item in list)
+                    {
+                        if (item is Dictionary<object, object> vdict)
+                        {
+                            var name = vdict.TryGetValue("name", out var n) ? n?.ToString() : null;
+                            if (!string.IsNullOrEmpty(name) && vdict.TryGetValue("value", out var val))
+                            {
+                                result[name!] = val ?? string.Empty;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var kv in dict)
+                    {
+                        var key = kv.Key?.ToString();
+                        if (!string.IsNullOrEmpty(key))
+                        {
+                            result[key!] = kv.Value ?? string.Empty;
+                        }
+                    }
+                }
+            }
+            else if (yamlObject is Dictionary<string, object> sdict)
+            {
+                if (sdict.TryGetValue("variables", out var vars) && vars is IEnumerable<object> list)
+                {
+                    foreach (var item in list)
+                    {
+                        if (item is Dictionary<object, object> vdict)
+                        {
+                            var name = vdict.TryGetValue("name", out var n) ? n?.ToString() : null;
+                            if (!string.IsNullOrEmpty(name) && vdict.TryGetValue("value", out var val))
+                            {
+                                result[name!] = val ?? string.Empty;
+                            }
+                        }
+                        else if (item is Dictionary<string, object> vsdict)
+                        {
+                            if (vsdict.TryGetValue("name", out var nobj) && nobj is not null && vsdict.TryGetValue("value", out var vobj))
+                            {
+                                result[nobj.ToString()!] = vobj ?? string.Empty;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var kv in sdict)
+                    {
+                        result[kv.Key] = kv.Value ?? string.Empty;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Parses JSON content of the form { "variables": [ {"name":"...","value":"..."}, ... ] }
+        /// and returns a flattened dictionary.
+        /// </summary>
+        private Dictionary<string, object> ParseJsonVariables(string json)
+        {
+            var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("variables", out var arr) && arr.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var el in arr.EnumerateArray())
+                {
+                    if (el.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        var name = el.TryGetProperty("name", out var n) ? n.GetString() : null;
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            object value = el.TryGetProperty("value", out var v) ? v.ToString()! : string.Empty;
+                            result[name!] = value;
+                        }
+                    }
+                }
+            }
+            return result;
         }
 
         /// <summary>
