@@ -258,4 +258,20 @@ public class SchemaManagerTests
         // Assert
         Assert.Equal(version1, version2);
     }
+
+    [Fact]
+    public void CreateValidationException_WrapsExceptionDetails()
+    {
+        var type = typeof(SchemaManager);
+        var method = type.GetMethod("CreateValidationException", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var document = new PipelineDocument { SourcePath = "doc.yml" };
+        var ex = new System.InvalidOperationException("Schema corrupt");
+        var error = (ValidationError)method!.Invoke(_schemaManager, new object?[] { document, ex })!;
+
+        Assert.Equal("SCHEMA_VALIDATION_ERROR", error.Code);
+        Assert.Contains("Schema corrupt", error.Message);
+        Assert.Equal("doc.yml", error.Location!.FilePath);
+    }
 }

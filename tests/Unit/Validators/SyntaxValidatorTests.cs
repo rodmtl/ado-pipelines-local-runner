@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using AdoPipelinesLocalRunner.Contracts;
 using FluentAssertions;
 using Xunit;
@@ -553,6 +555,26 @@ public class SyntaxValidatorTests
         var result = await validator.ValidateAsync(null!);
         Assert.NotEmpty(result.Errors.Where(e => e.Code == "NULL_DOCUMENT"));
         Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void DefaultSourceMap_ShouldReturnFallbacks()
+    {
+        var validatorType = typeof(AdoPipelinesLocalRunner.Core.Validators.SyntaxValidator);
+        var assembly = validatorType.Assembly;
+        var type = assembly.GetType("AdoPipelinesLocalRunner.Core.Validators.DefaultSourceMap");
+        type.Should().NotBeNull();
+        var instance = Activator.CreateInstance(type!);
+
+        var getLineNumber = type!.GetMethod("GetLineNumber");
+        var getOriginalLocation = type.GetMethod("GetOriginalLocation");
+        var getAllPaths = type.GetMethod("GetAllPaths");
+
+        ((int)getLineNumber!.Invoke(instance, new object?[] { "path" })!).Should().Be(-1);
+        var location = (SourceLocation)getOriginalLocation!.Invoke(instance, new object?[] { 9 })!;
+        location.FilePath.Should().Be("<unknown>");
+        location.Line.Should().Be(9);
+        getAllPaths!.Invoke(instance, Array.Empty<object?>()).Should().BeAssignableTo<IEnumerable<string>>();
     }
 
     #endregion

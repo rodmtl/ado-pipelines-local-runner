@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Xunit;
 using OutputFormatConfig = AdoPipelinesLocalRunner.Contracts.Configuration.OutputFormat;
@@ -328,6 +329,211 @@ public class ValidationOrchestratorTests
 
         response.Status.Should().Be(ValidationStatus.Failed);
         response.Summary.ErrorCount.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ShouldLoadPipelineVariables_FromYamlFile()
+    {
+        var doc = new PipelineDocument { SourcePath = "pipeline.yml" };
+        var parser = new Mock<IYamlParser>();
+        parser.Setup(p => p.ParseFileAsync<PipelineDocument>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParserResult<PipelineDocument>
+            {
+                Success = true,
+                Data = doc,
+                Errors = Array.Empty<ParseError>(),
+                SourceMap = Mock.Of<ISourceMap>()
+            });
+
+        var syntax = new Mock<ISyntaxValidator>();
+        syntax.Setup(s => s.ValidateAsync(It.IsAny<PipelineDocument>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult { IsValid = true, Errors = Array.Empty<ValidationError>(), Warnings = Array.Empty<ValidationError>() });
+
+        var schema = new Mock<ISchemaManager>();
+        schema.Setup(s => s.ValidateAsync(It.IsAny<PipelineDocument>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SchemaValidationResult { IsValid = true, SchemaVersion = "latest", Errors = Array.Empty<ValidationError>() });
+
+        var templates = new Mock<ITemplateResolver>();
+
+        VariableContext? capturedCtx = null;
+        var variables = new Mock<IVariableProcessor>();
+        variables.Setup(v => v.ProcessAsync(It.IsAny<PipelineDocument>(), It.IsAny<VariableContext>(), It.IsAny<CancellationToken>()))
+            .Callback<PipelineDocument, VariableContext, CancellationToken>((_, ctx, _) => capturedCtx = ctx)
+            .ReturnsAsync(new VariableProcessingResult
+            {
+                Success = true,
+                ProcessedDocument = doc,
+                ResolvedVariables = new Dictionary<string, ResolvedVariable>(),
+                UnresolvedReferences = Array.Empty<string>(),
+                Errors = Array.Empty<ValidationError>()
+            });
+
+        var reporter = new Mock<IErrorReporter>();
+        reporter.Setup(r => r.GenerateReport(It.IsAny<string>(), It.IsAny<IReadOnlyList<ValidationError>>(), It.IsAny<IReadOnlyList<ValidationError>>(), OutputFormatConfig.Text))
+            .Returns(new ReportOutput { Content = "ok", Format = OutputFormatConfig.Text });
+
+        var logger = new Mock<ILogger<ValidationOrchestrator>>();
+
+        var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
+
+        var pipelinePath = CreateTempPipelineFile();
+        var variableFile = Path.Combine(Path.GetTempPath(), $"vars-{Guid.NewGuid():N}.yml");
+        File.WriteAllText(variableFile, "variables:\n  - name: VAR1\n    value: one\n  - name: VAR2\n    value: two\n");
+
+        try
+        {
+            var response = await orchestrator.ValidateAsync(new ValidateRequest
+            {
+                Path = pipelinePath,
+                BaseDirectory = Path.GetDirectoryName(variableFile),
+                SchemaVersion = null,
+                VariableFiles = new[] { variableFile },
+                ValidateTemplates = false,
+                FailOnWarnings = false
+            }, CancellationToken.None);
+
+            response.Status.Should().Be(ValidationStatus.Success);
+            capturedCtx.Should().NotBeNull();
+            capturedCtx!.PipelineVariables.Should().ContainKey("VAR1").WhoseValue.Should().Be("one");
+            capturedCtx.PipelineVariables.Should().ContainKey("VAR2").WhoseValue.Should().Be("two");
+            response.Details.AllErrors.Should().BeEmpty();
+        }
+        finally
+        {
+            if (File.Exists(variableFile)) File.Delete(variableFile);
+            if (File.Exists(pipelinePath)) File.Delete(pipelinePath);
+        }
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ShouldReportError_ForInvalidJsonVariableFile()
+    {
+        var doc = new PipelineDocument { SourcePath = "pipeline.yml" };
+        var parser = new Mock<IYamlParser>();
+        parser.Setup(p => p.ParseFileAsync<PipelineDocument>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParserResult<PipelineDocument>
+            {
+                Success = true,
+                Data = doc,
+                Errors = Array.Empty<ParseError>(),
+                SourceMap = Mock.Of<ISourceMap>()
+            });
+
+        var syntax = new Mock<ISyntaxValidator>();
+        syntax.Setup(s => s.ValidateAsync(It.IsAny<PipelineDocument>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult { IsValid = true, Errors = Array.Empty<ValidationError>(), Warnings = Array.Empty<ValidationError>() });
+
+        var schema = new Mock<ISchemaManager>();
+        schema.Setup(s => s.ValidateAsync(It.IsAny<PipelineDocument>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SchemaValidationResult { IsValid = true, SchemaVersion = "latest", Errors = Array.Empty<ValidationError>() });
+
+        var templates = new Mock<ITemplateResolver>();
+
+        var variables = new Mock<IVariableProcessor>();
+        variables.Setup(v => v.ProcessAsync(It.IsAny<PipelineDocument>(), It.IsAny<VariableContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VariableProcessingResult
+            {
+                Success = true,
+                ProcessedDocument = doc,
+                ResolvedVariables = new Dictionary<string, ResolvedVariable>(),
+                UnresolvedReferences = Array.Empty<string>(),
+                Errors = Array.Empty<ValidationError>()
+            });
+
+        var reporter = new Mock<IErrorReporter>();
+        reporter.Setup(r => r.GenerateReport(It.IsAny<string>(), It.IsAny<IReadOnlyList<ValidationError>>(), It.IsAny<IReadOnlyList<ValidationError>>(), OutputFormatConfig.Text))
+            .Returns(new ReportOutput { Content = "invalid", Format = OutputFormatConfig.Text });
+
+        var logger = new Mock<ILogger<ValidationOrchestrator>>();
+
+        var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
+
+        var pipelinePath = CreateTempPipelineFile();
+        var variableFile = Path.Combine(Path.GetTempPath(), $"vars-{Guid.NewGuid():N}.json");
+        File.WriteAllText(variableFile, "{ not: valid json");
+
+        try
+        {
+            var response = await orchestrator.ValidateAsync(new ValidateRequest
+            {
+                Path = pipelinePath,
+                BaseDirectory = Path.GetDirectoryName(variableFile),
+                SchemaVersion = null,
+                VariableFiles = new[] { variableFile },
+                ValidateTemplates = false,
+                FailOnWarnings = false
+            }, CancellationToken.None);
+
+            response.Status.Should().Be(ValidationStatus.Failed);
+            response.Details.AllErrors.Should().ContainSingle(e => e.Code == "VARIABLE_FILE_INVALID");
+        }
+        finally
+        {
+            if (File.Exists(variableFile)) File.Delete(variableFile);
+            if (File.Exists(pipelinePath)) File.Delete(pipelinePath);
+        }
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ShouldReportError_ForMissingVariableFile()
+    {
+        var doc = new PipelineDocument { SourcePath = "pipeline.yml" };
+        var parser = new Mock<IYamlParser>();
+        parser.Setup(p => p.ParseFileAsync<PipelineDocument>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ParserResult<PipelineDocument>
+            {
+                Success = true,
+                Data = doc,
+                Errors = Array.Empty<ParseError>(),
+                SourceMap = Mock.Of<ISourceMap>()
+            });
+
+        var syntax = new Mock<ISyntaxValidator>();
+        syntax.Setup(s => s.ValidateAsync(It.IsAny<PipelineDocument>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult { IsValid = true, Errors = Array.Empty<ValidationError>(), Warnings = Array.Empty<ValidationError>() });
+
+        var schema = new Mock<ISchemaManager>();
+        schema.Setup(s => s.ValidateAsync(It.IsAny<PipelineDocument>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SchemaValidationResult { IsValid = true, SchemaVersion = "latest", Errors = Array.Empty<ValidationError>() });
+
+        var templates = new Mock<ITemplateResolver>();
+
+        var variables = new Mock<IVariableProcessor>();
+        variables.Setup(v => v.ProcessAsync(It.IsAny<PipelineDocument>(), It.IsAny<VariableContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new VariableProcessingResult
+            {
+                Success = true,
+                ProcessedDocument = doc,
+                ResolvedVariables = new Dictionary<string, ResolvedVariable>(),
+                UnresolvedReferences = Array.Empty<string>(),
+                Errors = Array.Empty<ValidationError>()
+            });
+
+        var reporter = new Mock<IErrorReporter>();
+        reporter.Setup(r => r.GenerateReport(It.IsAny<string>(), It.IsAny<IReadOnlyList<ValidationError>>(), It.IsAny<IReadOnlyList<ValidationError>>(), OutputFormatConfig.Text))
+            .Returns(new ReportOutput { Content = "missing", Format = OutputFormatConfig.Text });
+
+        var logger = new Mock<ILogger<ValidationOrchestrator>>();
+
+        var orchestrator = new ValidationOrchestrator(parser.Object, syntax.Object, schema.Object, templates.Object, variables.Object, reporter.Object, logger.Object);
+
+        var pipelinePath = CreateTempPipelineFile();
+        var missingVariableFile = Path.Combine(Path.GetTempPath(), $"vars-missing-{Guid.NewGuid():N}.yml");
+
+        var response = await orchestrator.ValidateAsync(new ValidateRequest
+        {
+            Path = pipelinePath,
+            BaseDirectory = Path.GetDirectoryName(missingVariableFile),
+            SchemaVersion = null,
+            VariableFiles = new[] { missingVariableFile },
+            ValidateTemplates = false,
+            FailOnWarnings = false
+        }, CancellationToken.None);
+
+        response.Status.Should().Be(ValidationStatus.Failed);
+        response.Details.AllErrors.Should().ContainSingle(e => e.Code == "VARIABLE_FILE_NOT_FOUND");
+
+        if (File.Exists(pipelinePath)) File.Delete(pipelinePath);
     }
 
     private static string CreateTempPipelineFile()

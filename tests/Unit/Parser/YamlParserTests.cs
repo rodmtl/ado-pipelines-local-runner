@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using AdoPipelinesLocalRunner.Contracts;
 using FluentAssertions;
 using Xunit;
@@ -466,6 +470,63 @@ steps:
             // If parser is lenient, check that it at least attempted parsing
             result.Should().NotBeNull();
         }
+    }
+
+    [Fact]
+    public void ConvertYamlNode_ShouldConvertMappingsSequencesAndScalars()
+    {
+        var parser = (AdoPipelinesLocalRunner.Core.Parsing.YamlParser)CreateParser();
+        var method = typeof(AdoPipelinesLocalRunner.Core.Parsing.YamlParser).GetMethod("ConvertYamlNode", BindingFlags.Instance | BindingFlags.NonPublic);
+        method.Should().NotBeNull();
+
+        var mapping = new YamlDotNet.RepresentationModel.YamlMappingNode
+        {
+            { "key", new YamlDotNet.RepresentationModel.YamlScalarNode("value") },
+            { "list", new YamlDotNet.RepresentationModel.YamlSequenceNode(new YamlDotNet.RepresentationModel.YamlScalarNode("item")) }
+        };
+
+        var converted = method!.Invoke(parser, new object?[] { mapping });
+
+        converted.Should().BeOfType<Dictionary<object, object>>();
+        var dict = (Dictionary<object, object>)converted!;
+        dict["key"].Should().Be("value");
+        dict["list"].Should().BeAssignableTo<List<object>>();
+    }
+
+    [Fact]
+    public void YamlPreProcessor_ShouldQuoteUnquotedScriptValues()
+    {
+        var yamlParserType = typeof(AdoPipelinesLocalRunner.Core.Parsing.YamlParser);
+        var assembly = yamlParserType.Assembly;
+        var type = assembly.GetType("AdoPipelinesLocalRunner.Core.Parsing.YamlPreProcessor");
+        type.Should().NotBeNull();
+        var method = type!.GetMethod("PreProcessScriptValues", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+        method.Should().NotBeNull();
+
+        var input = "- script: echo foo:bar";
+        var processed = (string)method!.Invoke(null, new object?[] { input })!;
+
+        processed.Should().Contain("\"echo foo:bar\"");
+    }
+
+    [Fact]
+    public void SourceMap_ShouldReturnFallbackLocations()
+    {
+        var yamlParserType = typeof(AdoPipelinesLocalRunner.Core.Parsing.YamlParser);
+        var assembly = yamlParserType.Assembly;
+        var type = assembly.GetType("AdoPipelinesLocalRunner.Core.Parsing.SourceMap");
+        type.Should().NotBeNull();
+        var sourceMap = Activator.CreateInstance(type!, "pipeline.yml");
+
+        var getLineNumber = type!.GetMethod("GetLineNumber", BindingFlags.Instance | BindingFlags.Public);
+        var getOriginalLocation = type.GetMethod("GetOriginalLocation", BindingFlags.Instance | BindingFlags.Public);
+        var getAllPaths = type.GetMethod("GetAllPaths", BindingFlags.Instance | BindingFlags.Public);
+
+        ((int)getLineNumber!.Invoke(sourceMap, new object?[] { "unknown" })!).Should().Be(-1);
+        var location = (SourceLocation)getOriginalLocation!.Invoke(sourceMap, new object?[] { 5 })!;
+        location.FilePath.Should().Be("pipeline.yml");
+        location.Line.Should().Be(5);
+        getAllPaths!.Invoke(sourceMap, Array.Empty<object?>()).Should().BeAssignableTo<IEnumerable<string>>();
     }
 
     #endregion

@@ -1,3 +1,5 @@
+using System;
+using System.Reflection;
 using AdoPipelinesLocalRunner.Contracts;
 using AdoPipelinesLocalRunner.Core.Templates;
 using Xunit;
@@ -430,5 +432,20 @@ stages:
         // Assert
         Assert.False(result.Success);
         Assert.NotEmpty(result.Errors);
+    }
+
+    [Fact]
+    public void CreateTemplateResolutionException_WrapsExceptionMessage()
+    {
+        var type = typeof(TemplateResolver);
+        var method = type.GetMethod("CreateTemplateResolutionException", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var instance = new TemplateResolver();
+        var ex = new System.IO.IOException("Access denied");
+        var error = (ValidationError)method!.Invoke(instance, new object?[] { "template.yml", ex })!;
+
+        Assert.Equal("TEMPLATE_RESOLUTION_ERROR", error.Code);
+        Assert.Contains("Access denied", error.Message);
     }
 }
